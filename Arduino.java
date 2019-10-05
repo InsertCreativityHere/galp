@@ -21,7 +21,7 @@ public class ArduinoInterface implements Runnable
         this.portCount = portTypes.length;
         this.sensors = new Sensor[portCount];
         this.sensorPortTypes = new boolean[portCount];
-
+t
         dPortCount = 0;
         aPortCount = 0;
         for(int i = 0; i < portCount; i++)

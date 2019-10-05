@@ -1,0 +1,89 @@
+So, first we need to think out the data structure, last time we made it super abstract and so that it could take in data from practically anything,
+which I think is a lofty goal, but also one that probably isn't the greatest for this specific application. First, we'll have two data classes:
+    Sensor
+    DataFile
+
+Let's just focus on Sensor for now, so every kind of sensor will have it's own class, and Sensor will be the base class for all of them:
+So the real question is how do we get data from the arduino to the computer? Should we just immediately forward data from the arduino to the computer,
+or should we offload some operation to the Arduino? I think we can let the arduino handle buffereding data, and then wait to return the buffered data
+until it's all been obtained. I also think we can offload the sensor calibration to the Arduino as well.
+Okay, so in reality, here's how the sensor is going to be used, we'll treat it like a passive object, so first off, here's the ways it can be used:
+    GetTheCurrentReadingRightNow
+    GetABatchOfReadings (after setting the sampling period, and specifying a sample count or time duration)
+
+Then, for the batch of readings, that will allow for some automony. There's a couple different ways that can be done. But no matter what, there's a
+callback function that will be called because of it. So first, you set the period stuff like above, then you should probably set a callback function:
+    UnBufferedMode: every piece of data is directly passed to the callbackfunction as soon as possible.
+    BufferedMode:   the sensor waits until a certain amount of data has been processed then returns that.
+
+And there's also a couple ways that the exact timing of batch mode can be stated, either manually with:
+    Start
+    Stop
+Or with triggers, by starting whenever readings meet a certain threshold, and same thing can be done for stopping (only if sample count/duration isn't
+also specified.) This is alot of modes of operations...
+
+But in reality, I think what we should do is always have the sensor polling and reading into an internal buffer, and we just read out of that whenever we
+want to honestly. Unless we need to manually stop sensors to conserve processing power... Which might not be a terrible idea honestly. Maybe we shouldn't
+always have them reading stuff... idk...
+
+
+
+So let's hypothetically think out a function stack here, let's say I want to get the current value of a sensor, in order to do it:
+    1) Encode a getData signal, with the sensor I want to get from.
+    2) Send the signal to the Arduino
+    3) The Arduino receives and processes the signal
+    4) It finds the sensor and reads a value off of it.
+    5) The arduino sends the value back.
+
+To model this, we could create a new sensor, and pass in an interface as part of the constructor.
+Then, when we call sensor.readValue(), if interface exists, it'll.
+
+NO I KNOW HOW TO NOW! We'll have an arduino class, that has 4 sensors attached to it, and the sensors will subclass ArduinoSensor,
+which will know to communicate with the arduino, and then everything will work out okay! Hopefully... yeah, let's do that!
+
+
+
+Whatever, I'm getting caught up on too many things that I shouldn't be. I'm gonna think about the sensor stuff
+later and just think about the GUI for now, since I at least more or less have that thought out by now...
+So, first we'll have a heirarchy for the data, data is organized in:
+    experiment
+        trial
+
+So an experiment has multiple trials, which should all follow the same parameters and types more or less.
+And then obviously, there can be multiple experiments too. Each completely disjoint from the others.
+So on the left pane, we'll have a scroll pane with a tree of experiment and trial, hopefully more
+stylized than the plain default one... Then in the right screen, we'll have a free range window thing going on.
+So there are windows, which can consist of raw data sheets, or graphs. Each window could have multiple tabs, or overlay,
+like for instance, multiple graphs on one plane, or multiple columns in the data sheet obviously. And lot's of
+drag and drop I guess. Idk actually. I'm a fan of having the multiple graphs... But not of the mutliple data sheets.
+So maybe, left pane is navigation, middle pane is a tabbed data sheet section, and then the right pane is a free-roam
+graph area, with snapping and drag-n-drop support. 
+
+
+
+
+
+
+
+
+Okay, let's redo this all over again then.
+So, we'll have sensors which are there own self-contained interface. They just encapsulate data about the
+sensor, and provide methods for doing stuff.
+
+
+New idea. Every sensor has to be accessed through an interface (like tha arduino),
+if need be, we can create a raw interface, or even better, make sensor an interface,
+so you can have sensor/interace hybrids. Well actually, what should we do. Let's list out
+the critical features of each kind:
+
+sensor(interface):
+    String getName()
+    String getDesc()
+    void calibrate(currentValue)
+    double getReading()
+    double getReadingRaw()
+
+Adapter(class):
+    Sensor[] getSensors()
+    Sensor getSensor(int)
+    getReading(int)
