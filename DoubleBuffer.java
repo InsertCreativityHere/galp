@@ -2,10 +2,20 @@
 package net.insertcreativity.galp;
 
 /**
- * TODO: mention streaming mode
- * TODO: mention not thread safe
+ * This class provides an auto-growing buffer for storing primitive doubles in a fast and relatively efficient manner.
+ * Note that while the buffer will auto-grow (allocate more memory as more elements are added), its not auto-shrinking,
+ * meaning even if the buffer is fully emptied, without an explicit call to 'shrink' the buffer will retain it's old
+ * size. This class also provides some basic methods for use across multiple threads but provides no internal thread
+ * safety whatsoever, any necessary synchronization will need to be handled externally. This can be easily acheived by
+ * having any threads that read or write to the buffer synchronize on it first.
+ *
+ * Internally within this project the buffer is always used in one of two modes: 'streaming' and 'completed', and
+ * always follows the contract that once the buffer is closed, no more data will be added to the buffer. 'Completed'
+ * mode is when the buffer is closed at creation, so the buffer gets it's data during construction, and no more data is
+ * written to it. As opposed to 'streaming' mode, where a single object will write data to the buffer as it becomes
+ * available. When the object is destroyed or it's reached the end of the data, it will close the buffer.
 **/
-public class DoubleBuffer
+public class DoubleBuffer implements Cloneable, Serializable
 {
     // The default number of elements to allocate in the buffer if none are specified.
     private static final int DEFAULT_BUFFER_ALLOCATE_AMOUNT = 256;
@@ -44,7 +54,8 @@ public class DoubleBuffer
 
     /** Creates a new buffer for holding primitive doubles that contains the specified array.
         @param d: An array of doubles to copy into the buffer. The buffer is allocated to be the exact size needed to
-                  hold the provided array. The provided array isn't altered by this constructor.
+                  hold the provided array. The provided array isn't altered by this constructor, and is copied into the
+                  buffer, so alterations to one array will not affect the other.
         @param streaming: Whether the buffer should be opened in streaming mode or not. **/
     public DoubleBuffer(double[] d, boolean streaming)
     {
@@ -52,7 +63,9 @@ public class DoubleBuffer
     }
 
     /** Creates a new buffer for holding primitive doubles that contains a subsection of the specified array.
-        @param d: An array holding doubles to copy into the buffer.
+        @param d: An array holding doubles to copy into the buffer. The buffer is allocated to be the exact size needed
+                  to hold the provided array. The provided array isn't altered by this constructor, and is copied into
+                  the buffer, so alterations to one array will not affect the other.
         @param offset: The index to start copying doubles into the buffer from. No elements before this index will be
                        stored in the buffer.
         @param length: The number of elements to store in the buffer. The buffer is allocated to be the exact size
@@ -71,6 +84,24 @@ public class DoubleBuffer
         // Copy the values into the buffer.
         System.arraycopy(d, offset, data, count, length);
         count += length;
+    }
+
+    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is created in
+        'completed' mode, so any additional data that is written to this buffer will not appeat in the clone. In
+        general, alterations to either buffer will not affect the other. This is a true deep copy. Note that cloning a
+        buffer that isn't closed can sometimes cause unexpected results. **/
+    public DoubleBuffer clone()
+    {
+        return new DoubleBuffer(this.data, false);
+    }
+
+    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is created in
+        the specified mode. However, any data written to the clone will not affect the original and vice verse; this is
+        a true deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results, and its
+        generally a bad idea to use this, as it can effectively be used to reopen a buffer. **/
+    public DoubleBuffer clone(boolean streaming)
+    {
+        return new DoubleBuffer(this.data, streaming);
     }
 
     /** Appends the provided value at the end of the buffer, growing the buffer if necessary. **/
@@ -273,6 +304,38 @@ public class DoubleBuffer
     public boolean isClosed()
     {
         return closed;
+    }
+
+    /** Blocks until the buffer is closed or the calling thread is interrupted.
+        @return: True if the method returned because the buffer was closed, false otherwise. Usually though false
+                 indicates the method was interrupted before the buffer was closed. **/
+    public boolean waitUntilClosed()
+    {
+        try{
+            synchronized(this){
+                while(!closed)
+                {
+                    this.wait();
+                }
+            }
+            return true;
+        } catch(InterruptedException ex){}
+        return false;
+    }
+
+    /** Blocks until the buffer is closed, timeout many milliseconds have passed, or the calling thread is interrupted.
+        @param timeout: How many milliseconds to wait for the buffer to close before returning prematurely.
+        @return: True if the method returned because the buffer was closed or the timeout was reached, false otherwise.
+                 Usually false indicates the method was interrupted though. **/
+    public boolean waitUntilClosed(long timeout)
+    {
+        try{
+            synchronized(this){
+                this.wait(timeout);
+            }
+            return true;
+        } catch(InterruptedException ex){}
+        return false;
     }
 
     /** Marks the buffer as being closed. This should only be called by sources that were writing into the buffer to

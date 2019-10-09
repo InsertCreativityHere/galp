@@ -1,7 +1,11 @@
 
 package net.insertcreativity.galp;
 
-public interface SensorInterface
+/**
+ * Base interface all sensor interfaces implement. It provides methods for accessing and communicating with both
+ * the sensor interface and any sensors attached to it.
+**/
+public interface SensorInterface extends Closeable
 {
     /** Returns the name of the interface. **/
     public String getName();
@@ -9,12 +13,12 @@ public interface SensorInterface
     /** Returns a short description about the interface. **/
     public String getDesc();
 
-    /** Returns the sensor connected on the specified port. *
+    /** Returns the sensor connected on the specified port.
         @param port: The port number to check on.
         @return: Any sensor currently connected to the port, or null if there are no connected sensors on it.*/
     public Sensor getSensor(int port);
 
-    /** Returns an array of the sensors on each port of the interface. 
+    /** Returns an array of the sensors on each port of the interface.
         @return: An array of sensors the same length as there are ports on the interface. For ports with a sensor
                  connected, the sensor is used. For unconnected ports, the entry is set to null.**/
     public Sensor[] getSensors();
@@ -97,4 +101,8 @@ public interface SensorInterface
         triggers or specified reading counts. Any already recorded data will still remain in it's buffer.
         @param port: The port to stop reading on.**/
     public void stopBatchReading(int port);
+
+    /** Closes the sensor interface and performs any necessary cleanup.
+        @throws IOException: If ann error occurs while closing. **/
+    public void close() throws IOException;
 }
