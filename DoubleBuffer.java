@@ -2,18 +2,20 @@
 package net.insertcreativity.galp;
 
 /**
- * This class provides an auto-growing buffer for storing primitive doubles in a fast and relatively efficient manner.
+ * This class provides a resizable buffer for storing primitive doubles in a fast and relatively efficient manner.
  * Note that while the buffer will auto-grow (allocate more memory as more elements are added), its not auto-shrinking,
  * meaning even if the buffer is fully emptied, without an explicit call to 'shrink' the buffer will retain it's old
- * size. This class also provides some basic methods for use across multiple threads but provides no internal thread
- * safety whatsoever, any necessary synchronization will need to be handled externally. This can be easily acheived by
- * having any threads that read or write to the buffer synchronize on it first.
+ * size. While this class provides some basic methods with thread awareness, the implementation provides no internal
+ * thread safety whatsoever, any necessary synchronization will need to be handled externally. This can be easily
+ * acheived by having any threads that read or write to the buffer synchronize on it first, although usually thread
+ * safety isn't necessary, and if data consistency is important, it's often worth just waiting for the buffer to close.
  *
- * Internally within this project the buffer is always used in one of two modes: 'streaming' and 'completed', and
- * always follows the contract that once the buffer is closed, no more data will be added to the buffer. 'Completed'
- * mode is when the buffer is closed at creation, so the buffer gets it's data during construction, and no more data is
- * written to it. As opposed to 'streaming' mode, where a single object will write data to the buffer as it becomes
- * available. When the object is destroyed or it's reached the end of the data, it will close the buffer.
+ * Internally within this project the buffer is always used in one of two modes: 'active' and 'closed', and always
+ * follows the contract that once an active buffer is closed, no more data will be added to the buffer. Some buffers
+ * are closed at creation, when data is loaded from a file for example, and there's more data to be written after
+ * construction. Other buffers are returned 'active', where data is actively written to the buffer after construction.
+ * Active buffers can and often are closed once data collection is completed. Every active buffer has an owner, the
+ * sole object allowed to modify it's state by writing data to it, or closing it.
 **/
 public class DoubleBuffer implements Cloneable, Serializable
 {
@@ -23,32 +25,31 @@ public class DoubleBuffer implements Cloneable, Serializable
     private static final int DEFAULT_BUFFER_GROW_AMOUNT = 128;
     // Flag indicating whether or not the buffer is still in streaming mode.
     private boolean closed;
-    // Array containing the actual data this buffer encapsulates.
+    // Array containing the actual data backing this buffer.
     private double[] data;
     // The number of elements currently stored in the buffer.
     private int count;
 
-    /** Creates a new buffer for holding primitive doubles, with the default allocation size and that's opened in
-        streaming mode. **/
+    /** Creates an active buffer for holding primitive doubles, with the default allocation size. **/
     public DoubleBuffer()
     {
         this(DEFAULT_BUFFER_ALLOCATE_AMOUNT, true);
     }
 
     /** Creates a new buffer for holding primitive doubles, with the default allocation size.
-        @param streaming: Whether the buffer should be opened in streaming mode or not. **/
-    public DoubleBuffer(boolean streaming)
+        @param streaming: True if the buffer should be left active after construction, or false to close it. **/
+    public DoubleBuffer(boolean active)
     {
-        this(DEFAULT_BUFFER_ALLOCATE_AMOUNT, streaming);
+        this(DEFAULT_BUFFER_ALLOCATE_AMOUNT, active);
     }
 
     /** Creates a new buffer for holding primitive doubles.
         @param length: The number of doubles to pre-allocate space for in the buffer.
-        @param streaming: Whether the buffer should be opened in streaming mode or not. **/
-    public DoubleBuffer(int length, boolean streaming)
+        @param active: True if the buffer should be left active after construction, or false to close it. **/
+    public DoubleBuffer(int length, boolean active)
     {
         data = new double[length];
-        closed = !streaming;
+        closed = !active;
         count = 0;
     }
 
@@ -56,10 +57,10 @@ public class DoubleBuffer implements Cloneable, Serializable
         @param d: An array of doubles to copy into the buffer. The buffer is allocated to be the exact size needed to
                   hold the provided array. The provided array isn't altered by this constructor, and is copied into the
                   buffer, so alterations to one array will not affect the other.
-        @param streaming: Whether the buffer should be opened in streaming mode or not. **/
-    public DoubleBuffer(double[] d, boolean streaming)
+        @param active: True if the buffer should be left active after construction, or false to close it. **/
+    public DoubleBuffer(double[] d, boolean active)
     {
-        this(d, 0, d.length, streaming);
+        this(d, 0, d.length, active);
     }
 
     /** Creates a new buffer for holding primitive doubles that contains a subsection of the specified array.
@@ -70,11 +71,11 @@ public class DoubleBuffer implements Cloneable, Serializable
                        stored in the buffer.
         @param length: The number of elements to store in the buffer. The buffer is allocated to be the exact size
                        needed to hold length many doubles.
-        @param streaming: Whether the buffer should be opened in streaming mode or not.
+        @param active: True if the buffer should be left active after construction, or false to close it.
         @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array. **/
-    public DoubleBuffer(double[] d, int offset, int length, boolean streaming)
+    public DoubleBuffer(double[] d, int offset, int length, boolean active)
     {
-        this(length, streaming);
+        this(length, active);
 
         // Ensure the range is valid.
         if((offset + length) > d.length)
@@ -86,16 +87,16 @@ public class DoubleBuffer implements Cloneable, Serializable
         count += length;
     }
 
-    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is created in
-        'completed' mode, so any additional data that is written to this buffer will not appeat in the clone. In
-        general, alterations to either buffer will not affect the other. This is a true deep copy. Note that cloning a
-        buffer that isn't closed can sometimes cause unexpected results. **/
+    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is identical to
+        this buffer, except the clone is always returned closed, so any additional data that is written to this buffer
+        will not appeat in the clone. In general, alterations to either buffer will not affect the other. This is a true
+        deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results. **/
     public DoubleBuffer clone()
     {
         return new DoubleBuffer(this.data, false);
     }
 
-    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is created in
+    /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is returned in
         the specified mode. However, any data written to the clone will not affect the original and vice verse; this is
         a true deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results, and its
         generally a bad idea to use this, as it can effectively be used to reopen a buffer. **/
@@ -156,7 +157,7 @@ public class DoubleBuffer implements Cloneable, Serializable
         count += length;
     }
 
-    /** Inserts the provided value at the specified index.
+    /** Inserts the provided value at the specified index, growing the buffer if necssary.
         @param d: The value to insert into the buffer.
         @param index: The position to insert the value in the buffer.
         @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
@@ -185,7 +186,7 @@ public class DoubleBuffer implements Cloneable, Serializable
 
     /** Returns the value at the specified index.
         @param index: The position to retrieve the value from.
-        @return: The value at the specified index.
+        @return: The double at the specified index.
         @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
     public double get(int index)
     {
@@ -202,7 +203,8 @@ public class DoubleBuffer implements Cloneable, Serializable
         return data[index];
     }
 
-    /** Returns a copy of all the data currently in the buffer. **/
+    /** Returns a deep copy of all the data currently in the buffer. Changes to the array or this buffer will have no
+        impact on the other. **/
     public double[] getData()
     {
         // Create and return a copy of all the data currently in the buffer.
@@ -293,22 +295,21 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Returns the number of elements currently stored in the buffer. Note this is not the actual size of the buffer,
-        which is often over-allocated for optimization. **/
+        which is often larger to reduce the number of re-allocations. **/
     public int length()
     {
         return count;
     }
 
-    /** Returns whether or not the buffer is closed. This is used in streaming mode to indicate that the object that
-        was writing into the buffer has stopped (the stream has closed). **/
+    /** Returns whether the buffer is closed. **/
     public boolean isClosed()
     {
         return closed;
     }
 
     /** Blocks until the buffer is closed or the calling thread is interrupted.
-        @return: True if the method returned because the buffer was closed, false otherwise. Usually though false
-                 indicates the method was interrupted before the buffer was closed. **/
+        @return: True if the method returned because the buffer was closed, false otherwise. Usually false indicates
+                the method was interrupted before the buffer was closed. **/
     public boolean waitUntilClosed()
     {
         try{
@@ -323,10 +324,10 @@ public class DoubleBuffer implements Cloneable, Serializable
         return false;
     }
 
-    /** Blocks until the buffer is closed, timeout many milliseconds have passed, or the calling thread is interrupted.
+    /** Blocks until the buffer is closed, the timeout is reached, or the calling thread is interrupted.
         @param timeout: How many milliseconds to wait for the buffer to close before returning prematurely.
         @return: True if the method returned because the buffer was closed or the timeout was reached, false otherwise.
-                 Usually false indicates the method was interrupted though. **/
+                 Usually false indicates the method was interrupted. **/
     public boolean waitUntilClosed(long timeout)
     {
         try{
@@ -338,8 +339,8 @@ public class DoubleBuffer implements Cloneable, Serializable
         return false;
     }
 
-    /** Marks the buffer as being closed. This should only be called by sources that were writing into the buffer to
-        indicate they're finished writing. Any threads waiting on the doublebuffer object will be notified. **/
+    /** Closes the buffer, this should be only called by a buffer's owner, or something that was writing data to it to
+        indicate they're finished writing. Any threads waiting on this object will be notified. **/
     public void close()
     {
         closed = true;

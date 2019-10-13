@@ -2,8 +2,7 @@
 package net.insertcreativity.galp;
 
 /**
- * Base interface all sensors implement. It provides basic methods for
- * retrieving data and information from the sensor.
+ * Base interface all sensors implement. It provides basic methods for interacting with the sensor.
 **/
 public interface Sensor extends Closeable
 {
@@ -13,10 +12,10 @@ public interface Sensor extends Closeable
     /** Returns a short description about the sensor. **/
     public String getDesc();
 
-    /** Performs a calibrated reading and returns the value. */
+    /** Performs a calibrated reading and returns the value. **/
     public double getReading();
 
-    /** Performs a reading without calibration and returns the value. */
+    /** Performs a reading without calibration and returns the value. **/
     public double getReadingRaw();
 
     /** Calibrates the sensor with a known value.
