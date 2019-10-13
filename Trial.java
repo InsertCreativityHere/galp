@@ -38,4 +38,10 @@ public class Trial
     {
         return name;
     }
+
+    /** Returns one of the trial's data buffers. **/
+    public DoubleBuffer getData(int index)
+    {
+        return DataManager.getBuffer(dataID[index]);
+    }
 }
