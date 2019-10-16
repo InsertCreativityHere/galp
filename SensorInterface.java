@@ -3,7 +3,7 @@ package net.insertcreativity.galp;
 
 /**
  * Base interface all sensor interfaces implement. It provides methods for accessing and communicating with both
- * the sensor interface and any sensors attached to it.
+ * the actual sensor interface and any sensors attached to it.
 **/
 public interface SensorInterface extends Closeable
 {
@@ -13,14 +13,14 @@ public interface SensorInterface extends Closeable
     /** Returns a short description about the interface. **/
     public String getDesc();
 
-    /** Returns the sensor connected on the specified port.
-        @param port: The port number to check on.
-        @return: Any sensor currently connected to the port, or null if there are no connected sensors on it.*/
+    /** Returns an object representing the sensor connected to the specified port.
+        @param port: The port number to check.
+        @return: Any sensor currently connected to the port, or null if there are no connected sensors. **/
     public Sensor getSensor(int port);
-
-    /** Returns an array of the sensors on each port of the interface.
-        @return: An array of sensors the same length as there are ports on the interface. For ports with a sensor
-                 connected, the sensor is used. For unconnected ports, the entry is set to null.**/
+//TODO UPDATE TERMINOLOGY AND DOCS HERE DOWN
+    /** Returns an array of the sensor objects for each port of the interface.
+        @return: An array of sensor objects the same length as there are ports on the interface. For ports with a
+                 sensor connected, it's sensor object is used . For unconnected ports, the entry is set to null. **/
     public Sensor[] getSensors();
 
     /** Returns whether or not this interface supports data buffering. **/
@@ -38,7 +38,7 @@ public interface SensorInterface extends Closeable
                  the specified size for any number of reasons. So this method will always return the actual size of the
                  buffer after the method is finished. A value of 0 indicates that buffering was disabled, negative
                  values indicate an error occured in allocation, but the magnitude of the value still is the number of
-                 elements allocated in the buffer.*/
+                 elements allocated in the buffer. **/
     public int setBufferSize(int port, int size);
 
     /** Calibrates the sensor with a known value. **/

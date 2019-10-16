@@ -87,3 +87,77 @@ Adapter(class):
     Sensor[] getSensors()
     Sensor getSensor(int)
     getReading(int)
+
+
+
+
+
+Okay, so we have interfaces for handling the sensors, their interfaces, and a class for interacting with their data.
+The current workflow is that all sensors are hooked up to sensor interfaces, and unless you're feeling gutsy or debugging,
+everything you do with sensors should be done through the API of a sensor interface. So here is the current flow:
+
+You only interact with the sensor interface, you call it's methods, and it handles all the sensor stuff in the background for you.
+The only non-obvious methods with life-cycle and design concerns are those that return DoubleBuffers. For those let's lay the
+following contract: When these methods are called: the SensorInterface will create a new doublebuffer, do whatever it wants with it,
+start the things it needs to, and it'll return it. The SensorInterface is the only thing that will write to the double buffer,
+and when it's done it'll close it.
+
+The idea of data callbacks is nice, but with the sampling frequencies we can expect it'll be pretty unrealistic to have that every time.
+So instead of pushing with callbacks, we'll use a polling system. If the buffer is closed, don't poll, it's done. If it's open, then poll
+for every whenever often (we could use the samplingFrequency and be smart about it, or just call it 0.2 seconds and be done with it) and
+do what you want with it. This way we can keep our nice encapsulation. And as for tracking what trial the buffer belongs too, when we
+actually call 'SensorInterface.somethingReturnBuffer', the caller should know the trial data, and can slap it in the database on it's own.
+This way we can completely separate the sensor and sensorInterface classes from the whole rest of the program. And then DoubleBuffer is done.
+Nothing else to worry about or think about for any of them! Nice!
+
+I made up these tags for writing out future documentation, so these are what they are:
+$DOC_START
+## DoubleBuffer LifeCycle
+
+
+There are two main kinds of DoubleBuffers, *_*Active Buffers*_*, and *_*Closed Buffers*_*. _Active Buffers_ are those that are still being actively written into, and _Closed Buffers_ are those that aren't; no additional data will be written to a _Closed Buffer_.
+
+Every buffer has a *_*Owner*_*, namely the object that created the buffer. This is purely a conceptual idea, there's no data member representing this, and no actual restrictions to enforce any of the following contracts.
+However, the contract used interally for this project is that any number of threads can read from a buffer, but that only a buffer's owner can modify it. Should a thread need to modify the buffer's data, it can first _clone_ (see _DataBuffer.clone()_) the buffer, creating a new buffer of which it will be the logical owner.
+This concept of exclusive modification permission matters most for _Active Buffers_, where only the _Buffer Owner_ is contractually permitted to write data to the buffer, and when the data is finished, it's the owner's responsibility to ensure it's closed (with a call to _DataBuffer.close()_).
+
+Within this program, there's 3 ways DoubleBuffers are created and used:
+1) _Active Buffers_ are created by a _Sensor Interface_, where sensor data is written into the buffer as readings are taken.
+2) _Closed Buffers_ are allocated by the _DataManager_ and filled with data from a file, often from a previous session.
+3) _Closed Buffers_ are allocated by the _DataManager_ when cloning an existent buffer to clean/cut data entries before analysis.
+
+Here is the explicit lifecycle for each case:
+
+### 1
+In this case, first a call to a _SensorInterface_ method is triggered by the user, the _SensorInterface_ handles the call, and returns an _Active Double Buffer_ of which the sensor is the owner.
+Next the caller registers the _Active Double Buffer_ with the _DataManager_, which stores a reference to the buffer and returns a ID string other parts of the program can use to reference the buffer.
+Finally the caller registers the ID it got from _DataManager_ with the corresponding _Trial_ object that the data is being collected for.
+
+It's common for the UI to periodically check the buffer (through _DataManager_) while it's still active to update graphs and datasheets.
+When the buffer is marked as closed, the UI will stop checking the buffer and update any corresponding graphs or datasheets.
+
+When data is finished being read from the _SensorInterface_, it'll close the buffer, and drop it's reference to it. At this point the buffer is now *_*Unowned*_*, meaning nothing owns it, and as such it'll remain unmodified forever.
+Even after the _SensorInterface_ drops the buffer, there will still be a usable reference of it in _DataManager_, which can be cloned and read from as needed.
+
+### 2
+In this case, a call to _DataManager.loadFromFile()_ is triggered by the user, and _DataManager_ loads the file and begins decoding it. 
+Within this program, all buffers are associated with a _parent_ (either a _session_, _experiment_, or _trial_, depending on how they were created) and this is reflected within the save file, where they'll be listed as a data member of their _parent_.
+When the save file is loaded, all the objects stored in it will be loaded, and any buffers will be allocated into _DataManager_ and given an ID, just like in case 1. Once the buffer's corresponding _parent_ has been constructed, the buffer's ID will be given to it, again, like case 1.
+The only differences here are that all the buffers will be loaded as _Closed_, as obviously, there's no data to write into them, and that the _parent_ keeps track which buffers contained data collected from sensors, and which were derived from those through filtering or calculations. When the _parent_ is loaded in, this data is loaded also.
+
+### 3
+Buffers of these type are called *_*Derived Buffers*_*, as they are clones of buffers consisting of original sensor data. These are allocated and stored in _DataManager_ like case 2 as _Closed Buffers_ when the user either clones or runs a filter/calculation on an existent buffer.
+TODO maybe I should write more here?
+$DOC_END
+
+
+Okay, and so how do we handle trials, experiments, and all that stuff. Trials I think should just be a passive struct more or less...
+I was originally thinking about making Experiment more of an active object, but now I don't know about that... I think I'll make all 3 more or less just passive structs for holding data honestly. Then I'll let the UI code handle actually tying everything together, since the UI code will be an absolute wreck anyways...
+But we should also have a command line tool for using this, even if only for our own testing purposes I think... Idk.
+
+$DOC_START
+## Triggers
+
+TODO talk about them being activated or something.
+
+$DOC_END
