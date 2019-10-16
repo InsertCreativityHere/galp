@@ -37,15 +37,15 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Creates a new buffer for holding primitive doubles, with the default allocation size.
-        @param streaming: True if the buffer should be left active after construction, or false to close it. **/
+      * @param streaming: True if the buffer should be left active after construction, or false to close it. **/
     public DoubleBuffer(boolean active)
     {
         this(DEFAULT_BUFFER_ALLOCATE_AMOUNT, active);
     }
 
     /** Creates a new buffer for holding primitive doubles.
-        @param length: The number of doubles to pre-allocate space for in the buffer.
-        @param active: True if the buffer should be left active after construction, or false to close it. **/
+      * @param length: The number of doubles to pre-allocate space for in the buffer.
+      * @param active: True if the buffer should be left active after construction, or false to close it. **/
     public DoubleBuffer(int length, boolean active)
     {
         data = new double[length];
@@ -54,25 +54,25 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Creates a new buffer for holding primitive doubles that contains the specified array.
-        @param d: An array of doubles to copy into the buffer. The buffer is allocated to be the exact size needed to
-                  hold the provided array. The provided array isn't altered by this constructor, and is copied into the
-                  buffer, so alterations to one array will not affect the other.
-        @param active: True if the buffer should be left active after construction, or false to close it. **/
+      * @param d: An array of doubles to copy into the buffer. The buffer is allocated to be the exact size needed to
+      *           hold the provided array. The provided array isn't altered by this constructor, and is copied into the
+      *           buffer, so alterations to one array will not affect the other.
+      * @param active: True if the buffer should be left active after construction, or false to close it. **/
     public DoubleBuffer(double[] d, boolean active)
     {
         this(d, 0, d.length, active);
     }
 
     /** Creates a new buffer for holding primitive doubles that contains a subsection of the specified array.
-        @param d: An array holding doubles to copy into the buffer. The buffer is allocated to be the exact size needed
-                  to hold the provided array. The provided array isn't altered by this constructor, and is copied into
-                  the buffer, so alterations to one array will not affect the other.
-        @param offset: The index to start copying doubles into the buffer from. No elements before this index will be
-                       stored in the buffer.
-        @param length: The number of elements to store in the buffer. The buffer is allocated to be the exact size
-                       needed to hold length many doubles.
-        @param active: True if the buffer should be left active after construction, or false to close it.
-        @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array. **/
+      * @param d: An array holding doubles to copy into the buffer. The buffer is allocated to be the exact size needed
+      *           to hold the provided array. The provided array isn't altered by this constructor, and is copied into
+      *           the buffer, so alterations to one array will not affect the other.
+      * @param offset: The index to start copying doubles into the buffer from. No elements before this index will be
+      *                stored in the buffer.
+      * @param length: The number of elements to store in the buffer. The buffer is allocated to be the exact size
+      *                needed to hold length many doubles.
+      * @param active: True if the buffer should be left active after construction, or false to close it.
+      * @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array. **/
     public DoubleBuffer(double[] d, int offset, int length, boolean active)
     {
         this(length, active);
@@ -88,18 +88,18 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is identical to
-        this buffer, except the clone is always returned closed, so any additional data that is written to this buffer
-        will not appeat in the clone. In general, alterations to either buffer will not affect the other. This is a true
-        deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results. **/
+      * this buffer, except the clone is always returned closed, so any additional data that is written to this buffer
+      * will not appeat in the clone. In general, alterations to either buffer will not affect the other. This is a true
+      * deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results. **/
     public DoubleBuffer clone()
     {
         return new DoubleBuffer(this.data, false);
     }
 
     /** Returns a deep copy of this buffer. The copy contains all the data currently in the buffer, and is returned in
-        the specified mode. However, any data written to the clone will not affect the original and vice verse; this is
-        a true deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results, and its
-        generally a bad idea to use this, as it can effectively be used to reopen a buffer. **/
+      * the specified mode. However, any data written to the clone will not affect the original and vice verse; this is
+      * a true deep copy. Note that cloning a buffer that isn't closed can sometimes cause unexpected results, and its
+      * generally a bad idea to use this, as it can effectively be used to reopen a buffer. **/
     public DoubleBuffer clone(boolean streaming)
     {
         return new DoubleBuffer(this.data, streaming);
@@ -124,12 +124,12 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Appends a subsection of the specified array at the end of the buffer, growing the buffer if necessary.
-        @param d: An array holding the doubles to append.
-        @param offset: The index to starting appending doubles into the buffer from. No elements before this index will
-                       be stored in the buffer.
-        @param length: The number of elements to append.
-        @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array, or either
-                                           the offset or length are negative. **/
+      * @param d: An array holding the doubles to append.
+      * @param offset: The index to starting appending doubles into the buffer from. No elements before this index will
+      *                be stored in the buffer.
+      * @param length: The number of elements to append.
+      * @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array, or either
+      *                                    the offset or length are negative. **/
     public void append(double[] d, int offset, int length)
     {
         // Ensure the range is valid.
@@ -158,9 +158,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Inserts the provided value at the specified index, growing the buffer if necssary.
-        @param d: The value to insert into the buffer.
-        @param index: The position to insert the value in the buffer.
-        @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
+      * @param d: The value to insert into the buffer.
+      * @param index: The position to insert the value in the buffer.
+      * @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
     public void insert(double d, int index)
     {
         // Make sure the index is valid (less than the number of elements and positive).
@@ -185,9 +185,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Returns the value at the specified index.
-        @param index: The position to retrieve the value from.
-        @return: The double at the specified index.
-        @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
+      * @param index: The position to retrieve the value from.
+      * @return: The double at the specified index.
+      * @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
     public double get(int index)
     {
         // Make sure the index is valid (less than the number of elements and positive).
@@ -204,7 +204,7 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Returns a deep copy of all the data currently in the buffer. Changes to the array or this buffer will have no
-        impact on the other. **/
+      * impact on the other. **/
     public double[] getData()
     {
         // Create and return a copy of all the data currently in the buffer.
@@ -214,9 +214,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Removes an element from the buffer and returns it.
-        @param index: The index of the element to remove.
-        @return: The element that was removed.
-        @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
+      * @param index: The index of the element to remove.
+      * @return: The element that was removed.
+      * @throws IndexOutOfBoundsException: If the index is negative or larger than the size of the buffer.**/
     public double remove(int index)
     {
         // Make sure the index is valid (less than the number of elements and positive).
@@ -234,10 +234,10 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Removes a range of elements from the buffer.
-        @param index: The index to start removing elements from.
-        @param length: The number of elements to remove, starting with the element at index.
-        @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array, or either
-                                           the offset or length are negative. **/
+      * @param index: The index to start removing elements from.
+      * @param length: The number of elements to remove, starting with the element at index.
+      * @throws IndexOutOfBoundsException: If offset+length is larger than the length of the provided array, or either
+      *                                    the offset or length are negative. **/
     public void remove(int index, int length)
     {
         // Ensure the range is valid.
@@ -259,9 +259,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Expands the underlying array this buffer uses by the specified amount. This doesn't affect the buffered data.
-        @param growBy: The number of elements to expand the backing array by.
-        @return: The new length of the backing array.
-        @throws IllegalArgumentException: If growBy is negative. **/
+      * @param growBy: The number of elements to expand the backing array by.
+      * @return: The new length of the backing array.
+      * @throws IllegalArgumentException: If growBy is negative. **/
     public int grow(int growBy)
     {
         if(growBy < 0)
@@ -278,10 +278,10 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Shrinks the underlying array this buffer uses by the specified amount. Any data that doesn't fit in the new
-        buffer will be discarded.
-        @param shrinkBy: The number of elements to shrink the backing array by.
-        @return: The new length of the backing array.
-        @throws IllegalArgumentException: If shrinkBy is negative. **/
+      * buffer will be discarded.
+      * @param shrinkBy: The number of elements to shrink the backing array by.
+      * @return: The new length of the backing array.
+      * @throws IllegalArgumentException: If shrinkBy is negative. **/
     public int shrink(int shrinkBy)
     {
         // Allocate a new buffer with the required size.
@@ -295,7 +295,7 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Returns the number of elements currently stored in the buffer. Note this is not the actual size of the buffer,
-        which is often larger to reduce the number of re-allocations. **/
+      * which is often larger to reduce the number of re-allocations. **/
     public int length()
     {
         return count;
@@ -308,8 +308,8 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Blocks until the buffer is closed or the calling thread is interrupted.
-        @return: True if the method returned because the buffer was closed, false otherwise. Usually false indicates
-                the method was interrupted before the buffer was closed. **/
+      * @return: True if the method returned because the buffer was closed, false otherwise. Usually false indicates
+      *         the method was interrupted before the buffer was closed. **/
     public boolean waitUntilClosed()
     {
         try{
@@ -325,9 +325,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Blocks until the buffer is closed, the timeout is reached, or the calling thread is interrupted.
-        @param timeout: How many milliseconds to wait for the buffer to close before returning prematurely.
-        @return: True if the method returned because the buffer was closed or the timeout was reached, false otherwise.
-                 Usually false indicates the method was interrupted. **/
+      * @param timeout: How many milliseconds to wait for the buffer to close before returning prematurely.
+      * @return: True if the method returned because the buffer was closed or the timeout was reached, false otherwise.
+      *          Usually false indicates the method was interrupted. **/
     public boolean waitUntilClosed(long timeout)
     {
         try{
@@ -340,7 +340,7 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Closes the buffer, this should be only called by a buffer's owner, or something that was writing data to it to
-        indicate they're finished writing. Any threads waiting on this object will be notified. **/
+      * indicate they're finished writing. Any threads waiting on this object will be notified. **/
     public void close()
     {
         closed = true;

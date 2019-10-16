@@ -19,11 +19,11 @@ public interface Sensor extends Closeable
     public double getReadingRaw();
 
     /** Calibrates the sensor with a known value.
-        @param currentValue: The known value that the sensor should currently read.
-        @return: Whether the calibration was successful. **/
+      * @param currentValue: The known value that the sensor should currently read.
+      * @return: Whether the calibration was successful. **/
     public boolean calibrate(double currentValue);
 
     /** Closes the sensor and performs any necessary cleanup.
-        @throws IOException: If ann error occurs while closing. **/
+      * @throws IOException: If ann error occurs while closing. **/
     public void close() throws IOException;
 }

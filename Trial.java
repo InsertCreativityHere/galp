@@ -16,9 +16,9 @@ public class Trial
     private String name;
 
     /** Creates a new trial object.
-        @param parent: Reference to the experiment that created this trial.
-        @param dataID: IDs for any of this trial's data buffers.
-        @param num: The index of this in it's experiment. **/
+      * @param parent: Reference to the experiment that created this trial.
+      * @param dataID: IDs for any of this trial's data buffers.
+      * @param num: The index of this in it's experiment. **/
     public Trial(Experiment parent, String[] bufferID, int num)
     {
         experiment = parent;
