@@ -18,7 +18,7 @@ public class Session
     public String name;
 
     /** Creates a new session.
-        @param name: The name to display for this session. **/
+      * @param name: The name to display for this session. **/
     public Session(String name)
     {
         this.name = name;

@@ -22,8 +22,8 @@ public class Experiment
     private String name;
 
     /** Creates a new experiment.
-        @param parent: Reference to the session that created this experiment.
-        @param num: The index of this experiment in it's session. **/
+      * @param parent: Reference to the session that created this experiment.
+      * @param num: The index of this experiment in it's session. **/
     public Experiment(Session parent, int num)
     {
         session = parent;
