@@ -1,6 +1,7 @@
-echo Cleaning build files...
+echo     ====\> Cleaning build files...
 
-rm -rf ./build/*
+# Deletes every file and folder inside the 'builds' folder.
+rm -rfv "./build/"*
 
 echo Finished.
 echo
