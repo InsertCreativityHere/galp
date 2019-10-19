@@ -1,0 +1,11 @@
+Manifest-Version: 1.0
+Main-Class: net.insertcreativity.galp.Main
+Name: net.insertcreativity.galp
+Implementation-Build-Date: 10/17/2019
+Implementation-Title: galp
+Implementation-Vender: Austin Henriksen
+Implementation-Version: 1.0.0
+Specification-Title: galp
+Specification-Vender: Austin Henriksen
+Specification-Version: 1.0.0
+Sealed: true
