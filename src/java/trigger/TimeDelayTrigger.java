@@ -13,7 +13,7 @@ public class TimeDelayTrigger extends Trigger
     // The time that the trigger was started at.
     private long startTime = -1;
     // The time that the trigger should activate at.
-    private long endTime = LONG.MAX_VALUE;
+    private long endTime = Long.MAX_VALUE;
 
     /** Creates a new TimeDelayTrigger with the specified delay and immediately starts it after construction.
       * @param delay: How many milliseconds the trigger should wait after being started before activating. **/
@@ -54,6 +54,6 @@ public class TimeDelayTrigger extends Trigger
       * @return: Whether delay many seconds have passed since this trigger was started. */
     public boolean checkTriggered(double datapoint)
     {
-        return (System.currentTimeMillis >= endTime);
+        return (System.currentTimeMillis() >= endTime);
     }
 }

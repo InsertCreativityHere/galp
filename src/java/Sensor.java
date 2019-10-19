@@ -1,6 +1,9 @@
 
 package net.insertcreativity.galp;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  * Base interface all sensors implement. It provides basic methods for interacting with the sensor.
 **/

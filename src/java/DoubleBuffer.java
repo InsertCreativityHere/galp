@@ -1,5 +1,9 @@
 
+//TODO implement serialization, in all the classes, not just this one!
+
 package net.insertcreativity.galp;
+
+import java.io.Serializable;
 
 /**
  * This class provides a resizable buffer for storing primitive doubles in a fast and relatively efficient manner.
@@ -80,7 +84,7 @@ public class DoubleBuffer implements Cloneable, Serializable
         // Ensure the range is valid.
         if((offset + length) > d.length)
         {
-            throw new IndexOutOfBoundsException("Specified range is outside the bounds of the provided array. array.length='" + d.length + "', range=(" + offset + "," + (range+length) + ")'.");
+            throw new IndexOutOfBoundsException("Specified range is outside the bounds of the provided array. array.length='" + d.length + "', range=(" + offset + "," + (offset+length) + ")'.");
         }
         // Copy the values into the buffer.
         System.arraycopy(d, offset, data, count, length);
@@ -170,7 +174,7 @@ public class DoubleBuffer implements Cloneable, Serializable
         } else
         if(index < 0)
         {
-            throw new IndexOutOfBoundsException("Index '" + index "' cannot be negative.");
+            throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
         }
         // Grow the size of the buffer if there isn't enough space.
         if(count + 1 >= data.length)
@@ -197,7 +201,7 @@ public class DoubleBuffer implements Cloneable, Serializable
         } else
         if(index < 0)
         {
-            throw new IndexOutOfBoundsException("Index '" + index "' cannot be negative.");
+            throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
         }
         // Return the requested value.
         return data[index];
@@ -226,11 +230,14 @@ public class DoubleBuffer implements Cloneable, Serializable
         } else
         if(index < 0)
         {
-            throw new IndexOutOfBoundsException("Index '" + index "' cannot be negative.");
+            throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
         }
+        double value = data[index];
         // Shift every element in the buffer back by 1, starting at index.
         System.arraycopy(data, (index+1), data, index, (count - index - 1));
         count--;
+
+        return value;
     }
 
     /** Removes a range of elements from the buffer.
@@ -241,9 +248,9 @@ public class DoubleBuffer implements Cloneable, Serializable
     public void remove(int index, int length)
     {
         // Ensure the range is valid.
-        if((index + length) > d.length)
+        if((index + length) > data.length)
         {
-            throw new IndexOutOfBoundsException("Specified range is outside the bounds of the provided array. array.length='" + d.length + "', range=(" + index + "," + (index+length) + ")'.");
+            throw new IndexOutOfBoundsException("Specified range is outside the bounds of the provided array. array.length='" + data.length + "', range=(" + index + "," + (index+length) + ")'.");
         } else
         if(index < 0)
         {
@@ -266,7 +273,7 @@ public class DoubleBuffer implements Cloneable, Serializable
     {
         if(growBy < 0)
         {
-            throw IllegalArgumentException("Cannot grow buffer by a negative length: '" + growBy + "'.");
+            throw new IllegalArgumentException("Cannot grow buffer by a negative length: '" + growBy + "'.");
         }
 
         // Allocate a new buffer with the required size.
@@ -287,7 +294,7 @@ public class DoubleBuffer implements Cloneable, Serializable
         // Allocate a new buffer with the required size.
         double[] newBuffer = new double[data.length - shrinkBy];
         // Copy any data in the old buffer into the new one that fits.
-        newCount = Math.min(count, newBuffer.length);
+        int newCount = Math.min(count, newBuffer.length);
         System.arraycopy(data, 0, newBuffer, 9, newCount);
         data = newBuffer;
         count = newCount;

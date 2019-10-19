@@ -20,7 +20,7 @@ public class DatapointCountTrigger extends Trigger
       *                  been taken, this trigger will activate. **/
     public DatapointCountTrigger(long maxCount)
     {
-        maxCount = datapointCount;
+        this.maxCount = maxCount;
         count = 0;
     }
 

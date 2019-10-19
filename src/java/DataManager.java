@@ -15,7 +15,7 @@ public class DataManager
     // Map containing every data buffer in use by the program, keyed by a generated ID string, and stored as a Column.
     private final Map<String, Column> datastore;
     // The number of characters to generate for ID strings.
-    private static final int IDlength;
+    private static final int IDlength = 64;
     // The characters to generate ID strings from.
     private static final String allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     // Random number generator used for generating random ID strings.
@@ -24,7 +24,7 @@ public class DataManager
     /** Create a new Data Manager. **/
     public DataManager()
     {
-        datastore = new HashMap<String, DoubleBuffer>();
+        datastore = new HashMap<String, Column>();
         rand = new Random();
     }
 

@@ -6,7 +6,7 @@ import net.insertcreativity.galp.Trigger;
 /**
  * Trigger that activates when the value of a datapoint rises above a certain threshold value.
 **/
-public class UpperThresholdTrigger implements Trigger
+public class UpperThresholdTrigger extends Trigger
 {
     // The upper bound to check datapoints against.
     public final double upper;

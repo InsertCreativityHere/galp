@@ -26,7 +26,7 @@ public class Trial
     public Trial(Experiment parent, String[] bufferIDs, int num)
     {
         experiment = parent;
-        dataIDs = bufferID;
+        dataIDs = bufferIDs;
         number = num;
         name = "Trial #" + number;
     }

@@ -7,7 +7,7 @@ package net.insertcreativity.galp;
  * falls outside of a certain range. These are used to trigger events, like starting and stopping batch readings for
  * instance. Once a trigger has activated, it will always remain activated.
 **/
-public class Trigger
+public abstract class Trigger
 {
     // Whether the trigger has activated yet.
     private boolean activated;

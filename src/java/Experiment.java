@@ -29,7 +29,7 @@ public class Experiment
         session = parent;
         number = num;
         name = "Experiment #" + number;
-        trials = new ArrayList<String>();
+        trials = new ArrayList<Trial>();
     }
 
     /** Sets the name of this experiment. **/

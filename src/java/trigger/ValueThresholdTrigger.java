@@ -59,6 +59,6 @@ public class ValueThresholdTrigger extends Trigger
       *          range. **/
     public boolean checkTriggered(double datapoint)
     {
-        return ((datapoint > upper) || (datapoint < lower) || (upperEquals && (datapoint == upper)) || (lowerEquals && (datapoint == lower));
+        return ((datapoint > upper) || (datapoint < lower) || (upperEquals && (datapoint == upper)) || (lowerEquals && (datapoint == lower)));
     }
 }
