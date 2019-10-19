@@ -4,13 +4,14 @@
 
 package net.insertcreativity.galp;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Class for encapsulating all the data of a session.
 **/
-public class Session
+public class Session implements Serializable
 {
     // List of all the experiments run in this session.
     public List<String> experiments;

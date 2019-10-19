@@ -4,10 +4,12 @@
 
 package net.insertcreativity.galp;
 
+import java.io.Serializable;
+
 /**
  * Class for encapsulating all the data of a trial.
 **/
-public class Trial
+public class Trial implements Serializable;
 {
     // Reference to the experiment this trial is a part of.
     public final Experiment experiment;

@@ -3,6 +3,7 @@
 
 package net.insertcreativity.galp;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -10,7 +11,7 @@ import java.util.Random;
 /**
  * Class for storing and managing data collected throughout sessions, and also for loading and saving data with files.
 **/
-public class DataManager
+public class DataManager implements Serializable
 {
     // Map containing every data buffer in use by the program, keyed by a generated ID string, and stored as a Column.
     private final Map<String, Column> datastore;
