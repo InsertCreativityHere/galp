@@ -9,7 +9,7 @@ import java.io.Serializable;
 /**
  * Class for encapsulating all the data of a trial.
 **/
-public class Trial implements Serializable;
+public class Trial implements Serializable
 {
     // Reference to the experiment this trial is a part of.
     public final Experiment experiment;
