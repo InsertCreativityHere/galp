@@ -1,18 +1,23 @@
+//TODO Add a -v verbose mode to the build anc clean scripts.
 
 package net.insertcreativity.galp;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.DisplayMode;
+import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
-import java.awt.KeyEvent;
+import java.awt.event.KeyEvent;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JToolBar;
 import javax.swing.JTree;
-import javax.swing.JTreeNode;
+import javax.swing.tree.TreeNode;
 
 public class GuiManager
 {
@@ -25,7 +30,9 @@ public class GuiManager
 
     // The navigation panel, this component is used for displaying the sessions, experiments, and trials currently
     // loaded into or that are running in the program.
-    private final JPanel navigationPanel;
+    private final JScrollPane navigationScrollPane;
+    // The actual tree that displays the sessions, experiments, and trials in the navigation panel.
+    private final JTree navigationTree;
 
     // The content panel, where the data spreadsheet and graphs are displayed.
     private final JPanel contentPanel;
@@ -34,18 +41,17 @@ public class GuiManager
 
 
     // The Root node that all sessions, experiments, and trials are stored under in the navigation panel.
-    private final JTreeNode navigationRoot;
-    // The actual tree that displays the sessions, experiments, and trials in the navigation panel.
-    private final JTree navigationTree;
+    //private final JTreeNode navigationRoot;
+
 
     // The data panel, this component is used to display the raw numerical data in a spreadsheet like fashion.
-    private final JPanel dataPanel;
+    //private final JPanel dataPanel;
 
     // The graph panel, this component is used for displaying graphs of various data from the program.
-    private final JPanel graphPanel;
+    //private final JPanel graphPanel;
 
 
-    private final void createMainGui()
+    public GuiManager()
     {
         // Throw an exception if the system doesn't support rendering GUIs.
         if(GraphicsEnvironment.isHeadless())
@@ -60,20 +66,31 @@ public class GuiManager
         {
             throw new HeadlessException("No screens detected on the system.");
         }
-        // Keep a reference to the main display for launching the application on.
+        // Keep a reference to the main display and it's display settings.
+        // This is the display the application is going to be opened on.
         GraphicsDevice mainDisplay = displays[0];
-        DisplayMode mainDisplayMode = mainDisplay.
+        DisplayMode mainDisplayMode = mainDisplay.getDisplayMode();
 
 
         // The GUI is built from the bottom up, starting with smaller components and then adding them to larger ones.
 
+
         //===== Create the navigation tree =====//
-        navigationTree = null;//TODO
+        navigationTree = new JTree((TreeNode)null);//TODO
+        // Hide the root node.
+        navigationTree.setRootVisible(false);
 
         //===== Create the navigation panel =====//
-        navigationScrollPane = new JScrollPane(navigationTree, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCOLLBAR_AS_NEEDED);
+        navigationScrollPane = new JScrollPane(navigationTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         // Enable mouse scrolling of the navigation pane.
         navigationScrollPane.setWheelScrollingEnabled(true);
+        // Make the scrollpane 100px wide
+        navigationScrollPane.setPreferredSize(new Dimension(200, 0));
+
+        //===== Create a panel for holding the entire navigation scroll pane in =====//
+        JPanel navigationPanel = new JPanel(new BorderLayout());
+        // Add the scroll pane to the navigation panel.
+        navigationPanel.add(navigationScrollPane, BorderLayout.CENTER);
 
 
 
@@ -138,20 +155,17 @@ public class GuiManager
         // whether to close; so it can prompt the user about unsaved data, perform cleanup, etc...
         mainFrame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 
-        //===== Display the main application window =====//
         // Pack and size all the windows components to get ready for displaying it.
         mainFrame.pack();
-        // Get the size of the screen the application window is going to be made on.
-        // Make the application window 75% of the screen space.
-        mainFrame.setSize((int)(mainDisplayMode.getWidth * 0.75), (int)(mainDisplayMode * 0.75));
+        // Make the application window 85% of the available screen space.
+        mainFrame.setSize((int)(mainDisplayMode.getWidth() * 0.85), (int)(mainDisplayMode.getHeight() * 0.85));
+    }
+
+    public void displayGui()
+    {
         // This centers the main application window on the screen.
         mainFrame.setLocationRelativeTo(null);
         // Display the main application window.
         mainFrame.setVisible(true);
-    }
-
-    public static void main(String[] args)
-    {
-        createMainGui();
     }
 }

@@ -112,8 +112,11 @@ Nothing else to worry about or think about for any of them! Nice!
 
 I made up these tags for writing out future documentation, so these are what they are:
 $DOC_START
-## DoubleBuffer LifeCycle
+## DoubleBuffers
 
+$TODO
+
+### DoubleBuffer LifeCycle
 
 There are two main kinds of DoubleBuffers, *_*Active Buffers*_*, and *_*Closed Buffers*_*. _Active Buffers_ are those that are still being actively written into, and _Closed Buffers_ are those that aren't; no additional data will be written to a _Closed Buffer_.
 
@@ -128,7 +131,7 @@ Within this program, there's 3 ways DoubleBuffers are created and used:
 
 Here is the explicit lifecycle for each case:
 
-### 1
+#### 1
 In this case, first a call to a _SensorInterface_ method is triggered by the user, the _SensorInterface_ handles the call, and returns an _Active Double Buffer_ of which the sensor is the owner.
 Next the caller registers the _Active Double Buffer_ with the _DataManager_, which stores a reference to the buffer and returns a ID string other parts of the program can use to reference the buffer.
 Finally the caller registers the ID it got from _DataManager_ with the corresponding _Trial_ object that the data is being collected for.
@@ -139,13 +142,13 @@ When the buffer is marked as closed, the UI will stop checking the buffer and up
 When data is finished being read from the _SensorInterface_, it'll close the buffer, and drop it's reference to it. At this point the buffer is now *_*Unowned*_*, meaning nothing owns it, and as such it'll remain unmodified forever.
 Even after the _SensorInterface_ drops the buffer, there will still be a usable reference of it in _DataManager_, which can be cloned and read from as needed.
 
-### 2
+#### 2
 In this case, a call to _DataManager.loadFromFile()_ is triggered by the user, and _DataManager_ loads the file and begins decoding it. 
 Within this program, all buffers are associated with a _parent_ (either a _session_, _experiment_, or _trial_, depending on how they were created) and this is reflected within the save file, where they'll be listed as a data member of their _parent_.
 When the save file is loaded, all the objects stored in it will be loaded, and any buffers will be allocated into _DataManager_ and given an ID, just like in case 1. Once the buffer's corresponding _parent_ has been constructed, the buffer's ID will be given to it, again, like case 1.
 The only differences here are that all the buffers will be loaded as _Closed_, as obviously, there's no data to write into them, and that the _parent_ keeps track which buffers contained data collected from sensors, and which were derived from those through filtering or calculations. When the _parent_ is loaded in, this data is loaded also.
 
-### 3
+#### 3
 Buffers of these type are called *_*Derived Buffers*_*, as they are clones of buffers consisting of original sensor data. These are allocated and stored in _DataManager_ like case 2 as _Closed Buffers_ when the user either clones or runs a filter/calculation on an existent buffer.
 TODO maybe I should write more here?
 $DOC_END
@@ -158,6 +161,55 @@ But we should also have a command line tool for using this, even if only for our
 $DOC_START
 ## Triggers
 
-TODO talk about them being activated or something.
+$TODO
 
+_Triggers_ are made to be incredibly lightweight and highly disposable, once a trigger activates, it's meant to be thrown away. And no two objects should ever share a trigger at the same time.
+
+### Trigger LifeCycle
+
+Within this program, _Triggers_ are used solely for starting and stopping batch readings. When the user is configuring a batch reading, they have the option to attach start and stop triggers that dictate when to start and stop the batch reading.
+After the user has finished configuring the batch reading, and starts it. First, _Triggers_ are created as per user specification, and any other configuration is setup as well, then the triggers are passed to _SensorInterface.startBatchReading_. The caller holds no reference to the triggers.
+The SensorInterface will then immediately start collecting data and passing it into _startTrigger.isTriggered_; when this returns true, it will start actually recording the data, and will continue to until _stopTrigger.isTriggered_ returns true.
+Once the batch reading is over, it discards the start and stop trigger, at which point, nothing should still hold a reference to them.
 $DOC_END
+
+$IDEA When we have batch readings with triggers, we should show the whole graph of values being read, AND also show on the graph where the trigger condition is (horizontal line for thresholds, and vertical for time delays).
+Then when the trigger hits, change something on the graph to indicate recording has begun. And we could also do the same thing for the ending trigger. I think that would be pretty cool!
+
+
+
+Okay, well now we have DoubleBuffer and Trigger done. So next should be the Session/Experiment/Trial objects. Then after that it'll be time to seriously take a shot at SensorInterface. Then we can start on the GUI (that'll take a while), and then the framework should be all done, and we can start on a specific implementation for the arduinos.
+
+So, how to do those 3 though? I don't know. It's shower time, then work time! (9:42 16/10/2019)
+
+Okay, so the real question is how active of a role do we want these objects to have? For ease of use and code efficiency, it's probably best if they're more or less just inactive structs, and then we have functions in some Main class that do all the heavy lifting and then just copy everything into the trial whatever struct.
+But that isn't as good of an encapsulation, and it's not as logial. So I think I'll just stick with having them behave more as full... But then it's still not entirely encapsaulative, it's more so just like a layering on top of SensorInterface...
+
+21:58 17/10/2019
+Okay, so we need to actually finish this like now. So, time to kick it into overdrive. We'll finish the data types first, and I'm going for a half-encapsulationg.
+So Session, Experiment, and Trial only encapsulate stuff that is related to them, and nothing else. So they still play a somewhat active role in of that, experiments can make trials and so on, or they can return information about themselves and be modified in slight ways (liek setting names and stuff)
+but all in all these are effecitvely more of structs than they are 'real' classes. So let's get this part churned out, then we can go back and focus on the database stuff.
+
+$DOC_START
+## Data Organization
+
+All parts of a labratory session are organized into 3 fundamental heirarchies:
+- Session
+  - Experiment
+    - Trial
+
+A *_*Session*_* represents one complete lab session and all the data gathered during it.
+A _session_ consists of multiple *_*Experiments*_*, these represent different activities carried out in a session.
+Finally there are *_*Trials*_*, which are an individual single run trial. Often an experiment is composed of multiple repeated trials.
+$DOC_END
+
+Okay, I'm also deferring derived data buffers until later. We can figure out how to cleanly implement and handle them after we get a release version of this finished.
+
+Alright, I also need to add documentation for the DataManager system
+
+$DOC_START
+##Data Manager
+$DOC_END
+
+For now, it's just getting left blank though because I need to focus on all the other things more.
+Alright... So next I need to seriously rethink the structure and update the comments of SensorInterface. After that I think I can make the Main class. Then after that I'm not sure wether to start on the GUI or the Arduino stuff... Probably the latter.
