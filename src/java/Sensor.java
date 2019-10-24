@@ -15,6 +15,12 @@ public interface Sensor extends Closeable
     /** Returns a short description about the sensor. **/
     public String getDesc();
 
+    /** Returns the name of the variable that this sensor is measuring. **/
+    public String getVariable();
+
+    /** Returns the units that this sensor is calibrated to use. **/
+    public String getUnits();
+
     /** Performs a calibrated reading and returns the value. **/
     public double getReading();
 

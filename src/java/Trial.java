@@ -29,11 +29,11 @@ public class Trial implements Serializable
         name = "Trial #" + number;
 
         // Allocate and register data buffers for the trial to store data in.
-        Sensor sensors = experiment.getSensors();
+        Sensor[] sensors = experiment.getSensors();
         bufferIDs = new long[sensors.length];
         for(int i = 0; i < bufferIDs.length; i++)
         {
-            bufferIDs[i] = DataManager.allocateBuffer(sensors[i].variable, sensors[i].units);
+            bufferIDs[i] = Main.dataManager.allocateBuffer(sensors[i].getVariable(), sensors[i].getUnits(), true);
         }
     }
 

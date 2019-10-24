@@ -11,7 +11,7 @@ import java.util.List;
 public class Session implements Serializable
 {
     // List of all the experiments run in this session.
-    private final List<Experiments> experiments;
+    private final List<Experiment> experiments;
     // The display name of this session
     private String name;
 
@@ -20,7 +20,7 @@ public class Session implements Serializable
     public Session(String name)
     {
         this.name = name;
-        experiments = new ArrayList<Experiments>();
+        experiments = new ArrayList<Experiment>();
     }
 
     /** Creates a new experiment in this session and returns the corresponding experiment object.
@@ -29,7 +29,7 @@ public class Session implements Serializable
     public Experiment newExperiment(Sensor[] sensors)
     {
         Experiment experiment = new Experiment(this, sensors, experiments.size());
-        experiments.append(experiment);
+        experiments.add(experiment);
         return experiment;
     }
 

@@ -38,7 +38,7 @@ public class Experiment implements Serializable
     public Trial newTrial()
     {
         Trial trial = new Trial(this, trials.size());
-        trials.append(trial);
+        trials.add(trial);
         return trial;
     }
 
