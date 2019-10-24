@@ -14,10 +14,10 @@ import java.io.Serializable;
  *
  * Internally within this project the buffer is always used in one of two modes: 'active' and 'closed', and always
  * follows the contract that once an active buffer is closed, no more data will be added to the buffer. Some buffers
- * are closed at creation, when data is loaded from a file for example, and there's more data to be written after
+ * are closed at creation, when data is loaded from a file for example, and there's no more data to be written after
  * construction. Other buffers are returned 'active', where data is actively written to the buffer after construction.
- * Active buffers can and often are closed once data collection is completed. Every active buffer has an owner, the
- * sole object allowed to modify it's state by writing data to it, or closing it.
+ * Every active buffer has exactly one owner, the sole object allowed to modify it's state or close it. This is usually
+ * a Sensor or Sensor interface, which puts readings into the buffer then closes it after the readings have been taken.
 **/
 public class DoubleBuffer implements Cloneable, Serializable
 {
