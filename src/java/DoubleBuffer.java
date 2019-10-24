@@ -1,6 +1,4 @@
 
-//TODO implement serialization, in all the classes, not just this one!
-
 package net.insertcreativity.galp;
 
 import java.io.Serializable;
@@ -215,6 +213,16 @@ public class DoubleBuffer implements Cloneable, Serializable
         double[] dataCopy = new double[count];
         System.arraycopy(data, 0, dataCopy, 0, count);
         return dataCopy;
+    }
+
+    /** Returns a direct reference to the buffer's backing array. Changes to the returned array WILL affect the buffer
+      * and vice versa. Note that if the buffer reallocates itself, this will no longer be the case as during
+      * reallocation, a new backing array is allocated and used, and any references to the old backing array are
+      * discarded. THIS METHOD SHOULD BE USED WITH EXTREME CAUTION, AND IS ONLY INCLUDED FOR PERFORMANCE REASONS. **/
+    @Deprecated
+    public double[] getDataDirect()
+    {
+        return data;
     }
 
     /** Removes an element from the buffer and returns it.
