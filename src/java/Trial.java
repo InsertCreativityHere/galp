@@ -1,7 +1,4 @@
 
-//TODO HANDLE DERIVED DATA BUFFERS
-//TODO TIGHTEN SCOPE VISIBILITY
-
 package net.insertcreativity.galp;
 
 import java.io.Serializable;
@@ -11,11 +8,10 @@ import java.io.Serializable;
 **/
 public class Trial implements Serializable
 {
+    // The IDs for each data buffer that this trial uses for storing it's data, as specified by DataManager.
+    private final long[] bufferIDs;
     // Reference to the experiment this trial is a part of.
     public final Experiment experiment;
-    // The IDs of all the data buffers data was collected into during this trial, as specified by the DataManager.
-    // This will always be the same length as 'experiment.units'.
-    public final String[] dataIDs;
     // The index of this trial in it's experiment.
     public final int number;
     // The display name of this trial, by default it's "Trial #_" where '_' is the index number.
@@ -25,12 +21,45 @@ public class Trial implements Serializable
       * @param parent: Reference to the experiment that created this trial.
       * @param bufferIDs: IDs for all of this trial's data buffers.
       * @param num: The index of this trial in it's experiment. **/
-    public Trial(Experiment parent, String[] bufferIDs, int num)
+    @SuppressWarnings("deprecation")//We use 'experiment.getSensors', but don't modify it, so it's safe to do.
+    public Trial(Experiment parent, int num)
     {
         experiment = parent;
-        dataIDs = bufferIDs;
         number = num;
         name = "Trial #" + number;
+
+        // Allocate and register data buffers for the trial to store data in.
+        Sensor sensors = experiment.getSensors();
+        bufferIDs = new long[sensors.length];
+        for(int i = 0; i < bufferIDs.length; i++)
+        {
+            bufferIDs[i] = DataManager.allocateBuffer(sensors[i].variable, sensors[i].units);
+        }
+    }
+
+    /** Returns the bufferID at the specified index.
+      * @param index: The index of the bufferID to retrieve.
+      * @return: The 'index'th buffer being used by this trial.
+      * @throws IndexOutOfBoundsException: If index is greater than or equal to 'getBufferCount', or negative. **/
+    public long getBuffer(int index)
+    {
+        // Make sure the index is valid (less than the number of buffers and positive).
+        if(index >= bufferIDs.length)
+        {
+            throw new IndexOutOfBoundsException("Index '" + index + "' is out of bounds. Length='" + bufferIDs.length + "'");
+        } else
+        if(index < 0)
+        {
+            throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
+        }
+
+        return bufferIDs[index];
+    }
+
+    /** Returns the number of buffers being used by this trial. **/
+    public int getBufferCount()
+    {
+        return bufferIDs.length;
     }
 
     /** Sets the name of this trial. **/

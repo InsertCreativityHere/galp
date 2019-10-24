@@ -1,7 +1,4 @@
 
-//TODO HANDLE DERIVED DATA BUFFERS
-//TODO TIGHTEN SCOPE VISIBILITY
-
 package net.insertcreativity.galp;
 
 import java.io.Serializable;
@@ -14,16 +11,41 @@ import java.util.List;
 public class Session implements Serializable
 {
     // List of all the experiments run in this session.
-    public List<String> experiments;
+    private final List<Experiments> experiments;
     // The display name of this session
-    public String name;
+    private String name;
 
     /** Creates a new session.
       * @param name: The name to display for this session. **/
     public Session(String name)
     {
         this.name = name;
-        experiments = new ArrayList<String>();
+        experiments = new ArrayList<Experiments>();
+    }
+
+    /** Creates a new experiment in this session and returns the corresponding experiment object.
+      * @param sensors: Array of all the sensors that are going to be used in each trial of the experiment.
+      * @return: The newly created experiment object. **/
+    public Experiment newExperiment(Sensor[] sensors)
+    {
+        Experiment experiment = new Experiment(this, sensors, experiments.size());
+        experiments.append(experiment);
+        return experiment;
+    }
+
+    /** Returns the experiment at the specified index.
+      * @param index: The index of the experiment to retrieve.
+      * @return: The 'index'th experiment done in this session.
+      * @throws IndexOutOfBoundsException: If index is greater than or equal to 'getExperimentCount', or negative. **/
+    public Experiment getExperiment(int index)
+    {
+        return experiments.get(index);
+    }
+
+    /** Returns the number of experiments in this session. **/
+    public int getExperimentCount()
+    {
+        return experiments.size();
     }
 
     /** Sets the name of this session. **/
