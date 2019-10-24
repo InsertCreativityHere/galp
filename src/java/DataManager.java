@@ -1,66 +1,86 @@
 
 //TODO add methods for loading/saving data from files.
+//TODO add methods for exporting data to other programs.
 
 package net.insertcreativity.galp;
 
-import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
 /**
+ * Class for managing data. It provides a centralized location for storing all data collected throughout session, and
+ * provides functions for saving/loading data with files, and exporting data into other applications.
  * Class for storing and managing data collected throughout sessions, and also for loading and saving data with files.
 **/
-public class DataManager implements Serializable
+public class DataManager
 {
-    // Map containing every data buffer in use by the program, keyed by a generated ID string, and stored as a Column.
-    private final Map<String, Column> datastore;
-    // The number of characters to generate for ID strings.
-    private static final int IDlength = 64;
-    // The characters to generate ID strings from.
-    private static final String allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    // Random number generator used for generating random ID strings.
-    private final Random rand;
+    // Map containing every data buffer currently in use by the program. Every data buffer is stored in a Column to
+    // encapsulate descriptions and metadata alongside the buffer. The map keys are just longs.
+    private final Map<Long, Column> datastore;
+    // Map containing all the savefiles the program knows of. Any objects that have been loaded from a file, or any
+    // objects that have been saved to a file will be stored in this map. It maps the object itself as keys to the
+    // stringified absolute path of it's corresponding save file.
+    private final Map<Object, String> savefiles;
 
     /** Create a new Data Manager. **/
     public DataManager()
     {
-        datastore = new HashMap<String, Column>();
-        rand = new Random();
+        datastore = new HashMap<Long, Column>();
+        savefiles = new HashMap<Object, String>();
     }
 
-    /** Registers a data buffer with this manager. The DataManager first wraps it in a column object to encapsulate the
-      * name and units of the data, then it generates an ID for the column and stores a reference of the column with
-      * the specified ID for later retrieval.
-      * @param buffer: The buffer to register. The buffer is in no way altered by this method.
-      * @param name: The display name of the buffer's data. This is used when displaying the data in the GUI.
-      * @param units: The units of the buffer's data.
-      * @return: The generated ID assigned to this buffer's column object. **/
-    public String registerBuffer(DoubleBuffer buffer, String name, String units)
+    /** Allocates a new buffer and registers it in the Data Manager.
+      * @param name: The display name for the data in the buffer.
+      * @param units: The units that the buffer's data was measured in.
+      * @param active: Whether the new buffer should be opened active (true) or closed (false)
+      * @return: The ID number the Data Manager generates corresponding to the allocated buffer.
+      *          This can be used to access the buffer in the future. **/
+    public Long allocateBuffer(String name, String units, boolean active)
     {
-        // Generate a random ID string.
-        char[] IdBuilder = new char[IDlength];
-        for(int i = 0; i < IDlength; i++)
-        {
-            IdBuilder[i] = allowed.charAt(rand.nextInt(allowed.length()));
-        }
-        String id = new String(IdBuilder);
+        return registerBuffer(new DoubleBuffer(active), name, units);
+    }
 
-        // Place the buffer in the datastore and return it's ID.
-        datastore.put(id, new Column(buffer, name, units));
+    /** Allocates a new buffer with the specified size and registers it in the Data Manager.
+      * @param name: The display name for the data in the buffer.
+      * @param units: The units that the buffer's data was measured in.
+      * @param size: The amount to space to pre-allocate in the buffer.
+      * @param active: Whether the new buffer should be opened active (true) or closed (false)
+      * @return: The ID number the Data Manager generates corresponding to the allocated buffer.
+      *          This can be used to access the buffer in the future. **/
+    public Long allocateBuffer(String name, String units, int size, boolean active)
+    {
+        return registerBuffer(new DoubleBuffer(size, active), name, units);
+    }
+
+    public Long registerBuffer(DoubleBuffer buffer, String name, String units)
+    {
+        Column column = new Column(buffer, name, units);
+        long id;
+        synchronized(datastore)
+        {
+            id = datastore.size();
+            datastore.put(id, column);
+        }
         return id;
     }
 
-    /** Returns a reference to the column with the specified ID. **/
-    public Column getColumn(String id)
+    /** Returns the buffer that was registered with the corresponding ID, or null if no buffer was found. **/
+    public DoubleBuffer getBuffer(long id)
     {
-        return datastore.get(id);
+        Column column = datastore.get(id);
+        if(column == null)
+        {
+            return null;
+        } else {
+            return getColumn(id).data;
+        }
     }
 
-    /** Returns a reference to the buffer stored inside the column with the specified ID. **/
-    public DoubleBuffer getBuffer(String id)
+    /** Returns the column object that was registered with the corresponding ID, or null if no column was found. **/
+    public Column getColumn(long id)
     {
-        return datastore.get(id).data;
+        return datastore.get(id);
     }
 
     /**

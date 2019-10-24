@@ -213,3 +213,34 @@ $DOC_END
 
 For now, it's just getting left blank though because I need to focus on all the other things more.
 Alright... So next I need to seriously rethink the structure and update the comments of SensorInterface. After that I think I can make the Main class. Then after that I'm not sure wether to start on the GUI or the Arduino stuff... Probably the latter.
+
+
+
+Okay, so how do we want to make the whole trial/experiment/session thing work?
+In reference to the whole system working together. So like, how should we have the user actually take data?
+So, we'll have the navigation list off to the left side. Okay, no matter what we'll have a triggerable task.
+$IDEA they can right click on an experiment in the navigation pane and select 'start new trial' or whatever, and it'll launch, of there's a record button in the toolbar (along with a chooser to pick out an experiment, by default it'll choose the most recent one). And we'll even have like a a menu option as well that'll launch it.
+But then once it's launched... Idk, maybe we shouldn't have doublebuffer be returned from the... no, I say keep it.
+Okay, so we first setup the readings we want on the sensor interface, (because we'll of split up start and setup already), then get all the bufferIDs together, call experiment.newTrial with the bufferIDs, and then (this is all being done in Main), we'll pass the trial to the GUI, and it'll automatically put it in the GUI as it needs to be. So all the messy interstuff will always be handled in main.
+And then making experiments will be a little complicated I guess...
+
+Okay, we also need a separate panel for handling sensors...
+First, let's split up the navigation... We'll have a section for data and another section for the sensors/interfaces.
+
+
+New issue, we've exposed direct access to the DoubleBuffers backing array for efficiency purposes, and this is something I plan to do in other places as well. But I also don't want either me or other people going haywire with it. And just having a comment saying 'hey this is dangerous' isn't good enough, so I'm going to abuse the 'deprecated' annotation.
+
+$DOC_START
+## Deprecated annotation
+
+Within the source, you may come across '@deprecated' and '@SuppressWarnings', these are Java annotations, and used to give the compiler extra information while it's running.
+'@deprecated' marks something (usually a method) as deprecated, and the compiler will issue a warning if it's used anywhere else in the program, unless wherever it's being used also has a '@SuppressWarnings' annotation, in which case the compiler will ignore the fact that deprecated things are being used.
+Within this project, we stretch the logic of this system and instead use '@deprecated' to indicate something as being unsafe or potentially very dangerous. For instance the 'getDataDirect' method of DoubleBuffer, this provides direct access to the buffer's data, which is not hanled correctly or carefully enough could cause serious issues. For this reason we mark it with @deprecated.
+The logic is that this will prevent is from being used flippantly, if someone uses a dangerous method without realizing the full consequences of it, the compiler will warn them about it. But if someone knows the potential danger it represents and wants to use it anyways, they can always mark it with '@SuppressWarnings'.
+$DOC_END
+
+Alright, we broke all the documentation we did beforehand on DoubleBuffer... Now it's created by Trial and just passed to the sensor interface instead.
+So hooray! Now we get to rewrite literally all of that eventually...
+
+Anyways, Session, Experiment, and Trial are pretty much all done now I think. So... Guess it's time to add the new support into DataManager, and start interfacing everything together into Main so that it can actually do things that are useful, and hopefully it'll be functioning at a basic level by Friday for preliminary testing.
+After I get everything hooked in together then I'll still have to start work on the actual Interface between my program and the Vernier Arduino stuff... But that shouldn't be too terrible. And I can hack away at that however once the main logic part of the project is over and done with!

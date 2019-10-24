@@ -46,11 +46,11 @@ public class DoubleBuffer implements Cloneable, Serializable
     }
 
     /** Creates a new buffer for holding primitive doubles.
-      * @param length: The number of doubles to pre-allocate space for in the buffer.
+      * @param size: The number of doubles to pre-allocate space for in the buffer.
       * @param active: True if the buffer should be left active after construction, or false to close it. **/
-    public DoubleBuffer(int length, boolean active)
+    public DoubleBuffer(int size, boolean active)
     {
-        data = new double[length];
+        data = new double[size];
         closed = !active;
         count = 0;
     }
