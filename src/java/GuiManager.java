@@ -1,4 +1,3 @@
-//TODO Add a -v verbose mode to the build anc clean scripts.
 
 package net.insertcreativity.galp;
 
@@ -10,13 +9,16 @@ import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.awt.event.KeyEvent;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.SwingConstants;
 import javax.swing.JToolBar;
 import javax.swing.JTree;
+import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeNode;
 
 public class GuiManager
@@ -28,28 +30,20 @@ public class GuiManager
     // The main toolbar that's displayed under the menu bar.
     private final JToolBar toolbar;
 
-    // The navigation panel, this component is used for displaying the sessions, experiments, and trials currently
-    // loaded into or that are running in the program.
-    private final JScrollPane navigationScrollPane;
-    // The actual tree that displays the sessions, experiments, and trials in the navigation panel.
-    private final JTree navigationTree;
+    // The navigation pane, this component is used for displaying the sensors and their interfaces along with the
+    // heirachy of all the sessions, experiments, and trials currently loaded into the program.
+    private final JSplitPane navigationPane;
+    // The sensor navigation pane, this displays the sensor interfaces and their sensors.
+    private final JScrollPane sensorNavPane;
+    // The data navigation pane, this displays the sessions, experiments, and trials currently in use by the program.
+    private final JScrollPane dataNavPane;
+    // The sensor tree, this contains the actual heirarchy of sensors and interfaces.
+    private final JTree sensorTree;
+    // The data tree, this contains the actual heirarchy of sessions, experiments, and trials.
+    private final JTree dataTree;
 
     // The content panel, where the data spreadsheet and graphs are displayed.
     private final JPanel contentPanel;
-
-
-
-
-    // The Root node that all sessions, experiments, and trials are stored under in the navigation panel.
-    //private final JTreeNode navigationRoot;
-
-
-    // The data panel, this component is used to display the raw numerical data in a spreadsheet like fashion.
-    //private final JPanel dataPanel;
-
-    // The graph panel, this component is used for displaying graphs of various data from the program.
-    //private final JPanel graphPanel;
-
 
     public GuiManager()
     {
@@ -71,26 +65,50 @@ public class GuiManager
         GraphicsDevice mainDisplay = displays[0];
         DisplayMode mainDisplayMode = mainDisplay.getDisplayMode();
 
-
         // The GUI is built from the bottom up, starting with smaller components and then adding them to larger ones.
 
 
-        //===== Create the navigation tree =====//
-        navigationTree = new JTree((TreeNode)null);//TODO
-        // Hide the root node.
-        navigationTree.setRootVisible(false);
 
-        //===== Create the navigation panel =====//
-        navigationScrollPane = new JScrollPane(navigationTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        // Enable mouse scrolling of the navigation pane.
-        navigationScrollPane.setWheelScrollingEnabled(true);
-        // Make the scrollpane 100px wide
-        navigationScrollPane.setPreferredSize(new Dimension(200, 0));
+        //===== Create the data tree =====//
+        DefaultMutableTreeNode dataRoot = new DefaultMutableTreeNode();
+        dataTree = new JTree(dataRoot);
+        dataTree.setRootVisible(false);
+        dataTree.setEditable(true);
 
-        //===== Create a panel for holding the entire navigation scroll pane in =====//
-        JPanel navigationPanel = new JPanel(new BorderLayout());
-        // Add the scroll pane to the navigation panel.
-        navigationPanel.add(navigationScrollPane, BorderLayout.CENTER);
+        //===== Create the sensor tree =====//
+        DefaultMutableTreeNode sensorRoot = new DefaultMutableTreeNode();
+        sensorTree = new JTree(sensorRoot);
+        sensorTree.setRootVisible(false);
+        sensorTree.setEditable(false);
+
+        //===== Create the data nav pane for displaying sessions, experiments, and trials =====//
+        dataNavPane = new JScrollPane(dataTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        dataNavPane.setWheelScrollingEnabled(true);
+
+        //===== Create the sensor nav pane for displaying the sensors and their interfaces ====//
+        sensorNavPane = new JScrollPane(sensorTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        sensorNavPane.setWheelScrollingEnabled(true);
+
+        //===== Create a panel for displaying the data navigation =====//
+        JPanel dataNavPanel = new JPanel(new BorderLayout());
+        // Add a label at the top of the data nav panel.
+        dataNavPanel.add(new JLabel("Data Explorer", SwingConstants.LEFT), BorderLayout.PAGE_START);
+        // Add the data nav pane to the panel.
+        dataNavPanel.add(dataNavPane, BorderLayout.CENTER);
+
+        //===== Create a panel for displaying the sensor navigation =====//
+        JPanel sensorNavPanel = new JPanel(new BorderLayout());
+        // Add a label at the top of the sensor nav panel.
+        sensorNavPanel.add(new JLabel("Sensors", SwingConstants.LEFT), BorderLayout.PAGE_START);
+        // Add the sensor nav pane to the panel.
+        sensorNavPanel.add(sensorNavPane, BorderLayout.CENTER);
+        // Make the sensorNavPanel to be 150px high.
+        sensorNavPanel.setPreferredSize(new Dimension(0, 150));
+
+        //===== Create a split pane for holding the sensor and data navigation panes =====//
+        navigationPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true, sensorNavPanel, dataNavPanel);
+        // Make the navigation pane 200px wide.
+        navigationPane.setPreferredSize(new Dimension(200, 0));
 
 
 
@@ -116,9 +134,13 @@ public class GuiManager
         JMenu viewMenu = new JMenu("View");
         viewMenu.setMnemonic(KeyEvent.VK_V);
 
-        //===== Create the analyze menu =====//
-        JMenu analyzeMenu = new JMenu("Analyze");
-        analyzeMenu.setMnemonic(KeyEvent.VK_A);
+        //===== Create the data menu =====//
+        JMenu dataMenu = new JMenu("Data");
+        dataMenu.setMnemonic(KeyEvent.VK_D);
+
+        //===== Create the sensors menu =====//
+        JMenu sensorsMenu = new JMenu("Sensors");
+        sensorsMenu.setMnemonic(KeyEvent.VK_S);
 
         //===== Create the help menu =====//
         JMenu helpMenu = new JMenu("Help");
@@ -130,13 +152,14 @@ public class GuiManager
         menubar.add(fileMenu);
         menubar.add(editMenu);
         menubar.add(viewMenu);
-        menubar.add(analyzeMenu);
+        menubar.add(dataMenu);
+        menubar.add(sensorsMenu);
         menubar.add(helpMenu);
 
 
 
         //===== Create a split pane for separating the navigation panel from the content panel =====//
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, navigationPanel, contentPanel);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, navigationPane, contentPanel);
 
         //===== Create a panel for placing the other panels and the toolbar into.
         JPanel mainPanel = new JPanel(new BorderLayout());
