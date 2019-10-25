@@ -142,6 +142,10 @@ public class GuiManager
         JMenu sensorsMenu = new JMenu("Sensors");
         sensorsMenu.setMnemonic(KeyEvent.VK_S);
 
+        //===== Create the options menu =====//
+        JMenu optionsMenu = new JMenu("Options");
+        optionsMenu.setMnemonic(KeyEvent.VK_O);
+
         //===== Create the help menu =====//
         JMenu helpMenu = new JMenu("Help");
         helpMenu.setMnemonic(KeyEvent.VK_H);
@@ -154,6 +158,7 @@ public class GuiManager
         menubar.add(viewMenu);
         menubar.add(dataMenu);
         menubar.add(sensorsMenu);
+        menubar.add(optionsMenu);
         menubar.add(helpMenu);
 
 
