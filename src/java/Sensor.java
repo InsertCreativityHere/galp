@@ -5,34 +5,101 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Base interface all sensors implement. It provides basic methods for interacting with the sensor.
+ * Class that encapsulates information and basic communication functionality for a sensor.
+ * Every sensor must be connected to a Sensor Interface which provides the actual interfacing between this program and
+ * the physical sensor. For fine-grained control or more complex data-capturing and communication the methods provided
+ * by Sensor Interface should be used instead.
 **/
-public interface Sensor extends Closeable
+public class Sensor implements Closeable
 {
-    /** Returns the name of the sensor. **/
-    public String getName();
+    // The SensorInterace that this sensor is connected to.
+    public final SensorInterface controller;
+    // The display name of the sensor.
+    public final String name;
+    // A brief description of the sensor.
+    public final String description;
+    // The name of the variable that this sensor tracks (distance, force, radiation, etc...).
+    public final String variable;
+    // The stringified units that this sensor makes measurements in (M, S, Kg, NM, etc...).
+    private String units;
+    // Flag for whether the sensor is currently connected.
+    private boolean connected;
 
-    /** Returns a short description about the sensor. **/
-    public String getDesc();
+    /** Creates a new sensor.
+      * @param parent: The SensorInterface that this sensor is connected to.
+      * @param name: The display name of the sensor.
+      * @param desc: A brief description of the sensor.
+      * @param var: The name of the variable that the sensor tracks.
+      * @param units: The units that this sensor measures it's values in.
+      * @param connected: whether or not the sensor is currently connected to it's interface and accessible. **/
+    public Sensor(SensorInterace parent, String name, String desc, String var, String units, boolean connected)
+    {
+        controller = parent;
+        this.name = name;
+        description = desc;
+        variable = var;
+        this.units = units;
+        this.connected = connected;
+    }
 
-    /** Returns the name of the variable that this sensor is measuring. **/
-    public String getVariable();
+    /** Returns the units that this sensor measures values in. **/
+    public String getUnits()
+    {
+        return units;
+    }
 
-    /** Returns the units that this sensor is calibrated to use. **/
-    public String getUnits();
+    /** Sets the units that the sensor measures it's readings in.
+      * This should only be called by the sensor's corresponding interface. **/
+    @Deprecated // This method shouldn't be used anywhere other than SensorInterface
+    public void setUnits(String units)
+    {
+        this.units = units;
+    }
 
-    /** Performs a calibrated reading and returns the value. **/
-    public double getReading();
+    /** Takes a reading from the sensor and returns the measured value. **/
+    public double getReading()
+    {
+        return controller.getReading(this);
+    }
 
-    /** Performs a reading without calibration and returns the value. **/
-    public double getReadingRaw();
+    /** Takes an uncalibrated reading from the sensor and returns the measured value. **/
+    public double getReadingRaw()
+    {
+        return controller.getReadingRaw(this);
+    }
 
-    /** Calibrates the sensor with a known value.
-      * @param currentValue: The known value that the sensor should currently read.
-      * @return: Whether the calibration was successful. **/
-    public boolean calibrate(double currentValue);
+    /** Returns whether the sensor is currently connected and accessible. **/
+    public boolean getConnected()
+    {
+        return connected;
+    }
 
-    /** Closes the sensor and performs any necessary cleanup.
-      * @throws IOException: If ann error occurs while closing. **/
-    public void close() throws IOException;
+    /** Sets whether the sensor should report itself as being connected.
+      * This should only be called by the sensor's corresponding interface. **/
+    @Deprecated // This method shouldn't be used anywhere other than SensorInterface
+    public void setConnected(boolean connected)
+    {
+        this.connected = connected;
+    }
+
+    /** Calibrates the sensor by zeroing it's current value. The sensor will automatically adjust itself so it's
+      * current value gets mapped to 0. **/
+    public void zero()
+    {
+       calibrate(0d);
+    }
+
+    /** Calibrates the sensor with a known current reference value. The sensor will automatically adjust itself so it's
+      * current value gets mapped to the specified known value. **/
+    public void calibrate(double currentValue)
+    {
+        controller.calibrate(this, currentValue);
+    }
+
+    /** Closes the sensor. This is used to perform any cleanup functions and let the sensor know it can power down.
+      * @throws IOException: If an exception occurs while shutting down the sensor. **/
+    public void close() throws IOException
+    {
+        controller.close(this);
+    }
 }
