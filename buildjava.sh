@@ -22,7 +22,7 @@ cp -v "./src/java-manifest.mf" "./build/res/manifest.mf"
 # Checks if the last command worked, and stops the script if it didn't.
 if [ $? -ne 0 ]; then exit; fi
 
-echo "    ====> Building jar file..."
+echo "    ====> Building Galp jar file..."
 # Combines all the compiled java code and resources into a JAR executable file.
 jar cfmv "./build/galp.jar" "./build/res/manifest.mf" -C "./build/classes" "."
 # Checks if the last command worked, and stops the script if it didn't.

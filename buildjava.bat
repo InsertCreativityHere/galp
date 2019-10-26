@@ -25,7 +25,7 @@ COPY /y /v ".\src\java-manifest.mf" "build\res\manifest.mf"
 REM Checks if the last command worked, and stops the script if it didn't.
 IF ERRORLEVEL 1 EXIT /B 1
 
-echo     ====^> Building jar file...
+echo     ====^> Building Galp jar file...
 REM Combines all the compiled java code and resources into a JAR executable file.
 jar cfmv "./build/galp.jar" "./build/res/manifest.mf" -C "./build/classes" "."
 REM Checks if the last command worked, and stops the script if it didn't.
