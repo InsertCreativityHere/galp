@@ -10,7 +10,7 @@ import java.io.IOException;
  * the physical sensor. For fine-grained control or more complex data-capturing and communication the methods provided
  * by Sensor Interface should be used instead.
 **/
-public class Sensor implements Closeable
+public abstract class Sensor implements Closeable
 {
     // The SensorInterace that this sensor is connected to.
     public final SensorInterface controller;
@@ -89,12 +89,13 @@ public class Sensor implements Closeable
        calibrate(0d);
     }
 
-    /** Calibrates the sensor with a known current reference value. The sensor will automatically adjust itself so it's
-      * current value gets mapped to the specified known value. **/
-    protected void calibrate(double currentValue)
-    {
-        controller.calibrate(this, currentValue);
-    }
+    /** Calibrates the specified sensor with a known current value it should be reporting.
+      * @param currentValue: The current value that the sensor should be measuring. After calibration the sensor will
+      *                      map whatever value it was reading before to the specified currentValue. **/
+    protected abstract void calibrate(double currentValue);
+
+    /** Adjusts a raw sensor reading by applying any necessary calibrations and accounting for different units too. **/
+    public abstract double adjustReading(double value);
 
     /** Closes the sensor. This is used to perform any cleanup functions and let the sensor know it can power down.
       * @throws IOException: If an exception occurs while shutting down the sensor. **/
