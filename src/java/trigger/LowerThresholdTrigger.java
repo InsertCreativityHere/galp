@@ -36,6 +36,7 @@ public class LowerThresholdTrigger extends Trigger
       * is received.
       * @param datapoint: The most recent datapoint value.
       * @return: Whether the datapoint is below the threshold value. **/
+    @Override
     public boolean checkTriggered(double datapoint)
     {
         return ((datapoint < lower) || (equals && (datapoint == lower)));

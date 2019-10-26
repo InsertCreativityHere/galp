@@ -27,7 +27,8 @@ public class DatapointCountTrigger extends Trigger
     /** Returns whether this trigger should be activated. This function should be called everytime a new datapoint
       * is received.
       * @param datapoint: The most recent datapoint.
-      * @return True if after this method has completed, there will of been maxCount many datapoint readings taken. */
+      * @return True if after this method has completed, there will of been maxCount many datapoint readings taken. **/
+    @Override
     public boolean checkTriggered(double datapoint)
     {
         count++;

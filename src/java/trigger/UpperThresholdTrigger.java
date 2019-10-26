@@ -36,6 +36,7 @@ public class UpperThresholdTrigger extends Trigger
       * is received.
       * @param datapoint: The most recent datapoint value.
       * @return: Whether the datapoint is above the threshold value. **/
+    @Override
     public boolean checkTriggered(double datapoint)
     {
         return ((datapoint > upper) || (equals && (datapoint == upper)));

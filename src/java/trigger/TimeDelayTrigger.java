@@ -51,7 +51,8 @@ public class TimeDelayTrigger extends Trigger
     /** Returns whether the trigger should be activated. This function should be called everytime a new datapoint
       * is received.
       * @param datapoint: The most recent datapoint value.
-      * @return: Whether delay many seconds have passed since this trigger was started. */
+      * @return: Whether delay many seconds have passed since this trigger was started. **/
+    @Override
     public boolean checkTriggered(double datapoint)
     {
         return (System.currentTimeMillis() >= endTime);

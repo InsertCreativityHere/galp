@@ -57,6 +57,7 @@ public class ValueThresholdTrigger extends Trigger
       * @param datapoint: The most recent datapoint value.
       * @return: True if the datapoint is outside the range of this threshold trigger. False if it's within the
       *          range. **/
+    @Override
     public boolean checkTriggered(double datapoint)
     {
         return ((datapoint > upper) || (datapoint < lower) || (upperEquals && (datapoint == upper)) || (lowerEquals && (datapoint == lower)));
