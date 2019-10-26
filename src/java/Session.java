@@ -26,7 +26,7 @@ public class Session implements Serializable
     /** Creates a new experiment in this session and returns the corresponding experiment object.
       * @param sensors: Array of all the sensors that are going to be used in each trial of the experiment.
       * @return: The newly created experiment object. **/
-    public Experiment newExperiment(Sensor[] sensors)
+    protected Experiment newExperiment(Sensor[] sensors)
     {
         Experiment experiment = new Experiment(this, sensors, experiments.size());
         experiments.add(experiment);
@@ -49,7 +49,7 @@ public class Session implements Serializable
     }
 
     /** Sets the name of this session. **/
-    public void setName(String name)
+    protected void setName(String name)
     {
         this.name = name;
     }

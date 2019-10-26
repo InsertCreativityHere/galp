@@ -220,7 +220,7 @@ public class DoubleBuffer implements Cloneable, Serializable
       * reallocation, a new backing array is allocated and used, and any references to the old backing array are
       * discarded. THIS METHOD SHOULD BE USED WITH EXTREME CAUTION, AND IS ONLY INCLUDED FOR PERFORMANCE REASONS. **/
     @Deprecated
-    public double[] getDataDirect()
+    protected double[] getDataDirect()
     {
         return data;
     }

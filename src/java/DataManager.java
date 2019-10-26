@@ -107,7 +107,7 @@ public class DataManager
         }
 
         /** Sets the name of this column. **/
-        public void setName(String name)
+        protected void setName(String name)
         {
             this.name = name;
         }

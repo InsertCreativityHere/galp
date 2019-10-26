@@ -51,7 +51,7 @@ public class Sensor implements Closeable
     /** Sets the units that the sensor measures it's readings in.
       * This should only be called by the sensor's corresponding interface. **/
     @Deprecated // This method shouldn't be used anywhere other than SensorInterface
-    public void setUnits(String units)
+    protected void setUnits(String units)
     {
         this.units = units;
     }
@@ -77,28 +77,28 @@ public class Sensor implements Closeable
     /** Sets whether the sensor should report itself as being connected.
       * This should only be called by the sensor's corresponding interface. **/
     @Deprecated // This method shouldn't be used anywhere other than SensorInterface
-    public void setConnected(boolean connected)
+    protected void setConnected(boolean connected)
     {
         this.connected = connected;
     }
 
     /** Calibrates the sensor by zeroing it's current value. The sensor will automatically adjust itself so it's
       * current value gets mapped to 0. **/
-    public void zero()
+    protected void zero()
     {
        calibrate(0d);
     }
 
     /** Calibrates the sensor with a known current reference value. The sensor will automatically adjust itself so it's
       * current value gets mapped to the specified known value. **/
-    public void calibrate(double currentValue)
+    protected void calibrate(double currentValue)
     {
         controller.calibrate(this, currentValue);
     }
 
     /** Closes the sensor. This is used to perform any cleanup functions and let the sensor know it can power down.
       * @throws IOException: If an exception occurs while shutting down the sensor. **/
-    public void close() throws IOException
+    protected void close() throws IOException
     {
         controller.close(this);
     }

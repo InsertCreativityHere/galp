@@ -35,7 +35,7 @@ public class Experiment implements Serializable
     }
 
     /** Creates a new trial in this experiment and returns the corresponding trial object. **/
-    public Trial newTrial()
+    protected Trial newTrial()
     {
         Trial trial = new Trial(this, trials.size());
         trials.add(trial);
@@ -66,7 +66,7 @@ public class Experiment implements Serializable
     }
 
     /** Sets the name of this experiment. **/
-    public void setName(String name)
+    protected void setName(String name)
     {
         this.name = name;
     }

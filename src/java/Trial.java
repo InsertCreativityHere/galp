@@ -63,7 +63,7 @@ public class Trial implements Serializable
     }
 
     /** Sets the name of this trial. **/
-    public void setName(String name)
+    protected void setName(String name)
     {
         this.name = name;
     }
