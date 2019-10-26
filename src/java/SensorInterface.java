@@ -1,18 +1,94 @@
 
 package net.insertcreativity.galp;
 
+import java.io.Closeable;
+import java.io.IOException;
+
+public abstract class SensorInterface implements Closeable
+{
+    public final String name;
+    public final String description;
+    private boolean connected;
+    protected final List<Sensor> sensors;
+
+    public SensorInterface(String name, String desc, boolean connected)
+    {
+        this.name = name;
+        description = desc;
+        this.connected = connected;
+    }
+
+    public abstract int getSensorCount();
+
+    public abstract Sensor getSensor(int index);
+
+    public abstract Sensor[] getSensors();
+
+    public abstract void addSensor(Sensor sensor, int index);
+
+    public abstract void rescanSensors();
+
+    public abstract void calibrate(Sensor sensor, double currentValue);
+
+    public abstract double getReading(Sensor sensor);
+
+    public abstract double getReadingRaw(Sensor sensor);
+
+    public abstract void setSensorState(Sensor sensor, boolean enabled);
+
+    public abstract void setSensorsState(Sensor[] sensors, boolean[] enabled);
+
+    public abstract double[] getReadings();
+
+    public abstract double[] getReadingsRaw();
+ 
+    public abstract void setSamplingPeriod(long samplePeriod);
+
+    public abstract void getSamplingPeriod();
+
+    public abstract void startBatchReading();
+
+    public abstract void startBatchReading(int sampleCount);
+
+    public abstract void startBatchReading(Trigger start, Trigger stop);
+
+    public abstract void close() throws IOException;
+}
+
+
+
+
+
+public class VernierSensorInterface extends SensorInterface
+{
+    public static final PORT_COUNT = 4;
+    public final String name = "Vernier Sensor Adapter";
+    public final String description = "Arduino based adapter that interfaces Vernier LabMate sensors with a computer through a serial connection.\nIt provides basic functionality for controlling and reading Vernier Labmate sensors.";
+    private boolean connected;
+    private Sensor[] sensors;
+
+    public VernierSensorInterface()
+    {
+        sensors = new Sensor[PORT_COUNT];
+    }
+
+    public void close() throws IOException
+    {
+
+    }
+}
+
+
+
+
+
+
 /**
  * Base interface all sensor interfaces implement. It provides methods for accessing and communicating with both
  * the actual sensor interface and any sensors attached to it.
 **/
 public interface SensorInterface extends Closeable
 {
-    /** Returns the name of the interface. **/
-    public String getName();
-
-    /** Returns a short description about the interface. **/
-    public String getDesc();
-
     /** Returns an object representing the sensor connected to the specified port.
         @param port: The port number to check.
         @return: Any sensor currently connected to the port, or null if there are no connected sensors. **/
@@ -84,7 +160,7 @@ public interface SensorInterface extends Closeable
                  as they're received from the sensor. When count many readings have been taken, or the batch has been
                  manually stopped, the buffer is marked as closed.**/
     public DoubleBuffer startBatchReading(int port, int count);
-
+//TODO DOCUMENTATION UP FROM HERE
     /** Starts a batch reading on the specified port when the start trigger evaluates as true, and continues reading
         until either the end trigger evaluates as true, or the reading is manually stopped. If there is no sensor
         attached to the port, this immediately returns a closed buffer. A reading is taken from the sensor once per
@@ -99,10 +175,10 @@ public interface SensorInterface extends Closeable
 
     /** Manually terminates a batch reading. This will immediately cancel the session, regardless of any
         triggers or specified reading counts. Any already recorded data will still remain in it's buffer.
-        @param port: The port to stop reading on.**/
+        @param port: The port to stop reading on. **/
     public void stopBatchReading(int port);
 
     /** Closes the sensor interface and performs any necessary cleanup.
-        @throws IOException: If ann error occurs while closing. **/
+        @throws IOException: If an error occurs while closing. **/
     public void close() throws IOException;
 }
