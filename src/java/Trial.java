@@ -17,24 +17,57 @@ public class Trial implements Serializable
     // The display name of this trial, by default it's "Trial #_" where '_' is the index number.
     private String name;
 
-    /** Creates a new trial object.
+    /** Creates a new trial object. Data buffers are automatically allocated and registered for the trial.
       * @param parent: Reference to the experiment that created this trial.
-      * @param bufferIDs: IDs for all of this trial's data buffers.
       * @param num: The index of this trial in it's experiment. **/
-    @SuppressWarnings("deprecation")//We use 'experiment.getSensors', but don't modify it, so it's safe to do.
     public Trial(Experiment parent, int num)
     {
         experiment = parent;
         number = num;
         name = "Trial #" + number;
 
-        // Allocate and register data buffers for the trial to store data in.
-        Sensor[] sensors = experiment.getSensors();
-        bufferIDs = new long[sensors.length];
+        bufferIDs = new long[experiment.getSensorCount()];
         for(int i = 0; i < bufferIDs.length; i++)
         {
-            bufferIDs[i] = Main.dataManager.allocateBuffer(sensors[i].getVariable(), sensors[i].getUnits(), true);
+            Sensor sensor = experiment.getSensor(i);
+            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.getVariable(), sensor.getUnits(), true);
         }
+    }
+
+    /** Creates a new trial object. Data buffers are automatically allocated and registered for the trial.
+      * @param parent: Reference to the experiment that created this trial.
+      * @param num: The index of this trial in it's experiment.
+      * @param count: The number of data points expected to be recorded by the trial. This is used while constructing
+      *               the trial's data buffers. **/
+    public Trial(Experiment parent, int num, int count)
+    {
+        experiment = parent;
+        number = num;
+        name = "Trial #" + number;
+
+        for(int i = 0; i < bufferIDs.length; i++)
+        {
+            Sensor sensor = experiment.getSensor(i);
+            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.getVariable(), sensor.getUnits(), size, true);
+        }
+    }
+
+    /** Creates a new trial object with an array of pre-registered buffers.
+      * @param parent: Reference to the experiment that created this trial.
+      * @param bufferIDs: IDs for all of this trial's data buffers.
+      * @param num: The index of this trial in it's experiment. **/
+    public Trial(Experiment parent, long[] bufferIDs, int num)
+    {
+        experiment = parent;
+        number = num;
+        name = "Trial #" + number;
+        bufferIDs = bufferIDs;
+    }
+
+    /** Returns the number of buffers being used by this trial. **/
+    public int getBufferCount()
+    {
+        return bufferIDs.length;
     }
 
     /** Returns the bufferID at the specified index.
@@ -43,7 +76,7 @@ public class Trial implements Serializable
       * @throws IndexOutOfBoundsException: If index is greater than or equal to 'getBufferCount', or negative. **/
     public long getBuffer(int index)
     {
-        // Make sure the index is valid (less than the number of buffers and positive).
+        // Make sure the index is valid (less than the number of buffers and non-negative).
         if(index >= bufferIDs.length)
         {
             throw new IndexOutOfBoundsException("Index '" + index + "' is out of bounds. Length='" + bufferIDs.length + "'");
@@ -52,14 +85,15 @@ public class Trial implements Serializable
         {
             throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
         }
-
         return bufferIDs[index];
     }
 
-    /** Returns the number of buffers being used by this trial. **/
-    public int getBufferCount()
+    /** Returns a direct reference to the buffer ids being used by this trial. Alterations to this array will affect
+      * the trial's array too, so this method should be used with extreme caution. **/
+    @Deprecated // Altering the returned array can have serious consequences on the trial.
+    public long[] getBuffers()
     {
-        return bufferIDs.length;
+        return bufferIDs;
     }
 
     /** Sets the name of this trial. **/

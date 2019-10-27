@@ -34,12 +34,29 @@ public class Experiment implements Serializable
         trials = new ArrayList<Trial>();
     }
 
-    /** Creates a new trial in this experiment and returns the corresponding trial object. **/
+    /** Creates a new trial in this experiment and returns the corresponding trial object.
+      * @return: The newly created trial object. **/
     protected Trial newTrial()
     {
         Trial trial = new Trial(this, trials.size());
         trials.add(trial);
         return trial;
+    }
+
+    /** Creates a new trial in this experiment and returns the corresponding trial object.
+      * @param count: The number of data points expected to be recorded in the trial.
+      * @return The newly created trial object. **/
+    protected Trial newTrial(int count)
+    {
+        Trial trial = new Trial(this, trials.size(), count);
+        trials.add(trial);
+        return trial;
+    }
+
+    /** Returns the number of trials taken in this experiment so far **/
+    public int getTrialCount()
+    {
+        return trials.size();
     }
 
     /** Returns the trial at the specified index.
@@ -51,18 +68,28 @@ public class Experiment implements Serializable
         return trials.get(index);
     }
 
-    /** Returns the number of trials taken in this experiment so far **/
-    public int getTrialCount()
+    /** Returns the number of sensors being used in this experiment. **/
+    public int getSensorCount()
     {
-        return trials.size();
+        return sensors.length;
     }
 
-    /** Returns a reference to this experiment's sensor array.
-      * Modifications to either array will influence the other, so this method should be used catiously. **/
-    @Deprecated
-    public Sensor[] getSensors()
+    /** Returns the sensor at the specified index.
+      * @param index: The index of the sensor to retrieve.
+      * @return: The 'index'th sensor being used in this experiment.
+      * @throws IndexOutOfBoundsException: If the index is greater than or equal to 'getSensorCount', or negative. **/
+    public Sensor getSensor(int index)
     {
-        return sensors;
+        // Make sure the index is valid (less than the number of sensors and non-negative).
+        if(index >= sensors.length)
+        {
+            throw new IndexOutOfBoundsException("Index '" + index + "' is out of bounds. Length='" + sensors.length + "'");
+        } else
+        if(index < 0)
+        {
+            throw new IndexOutOfBoundsException("Index '" + index + "' cannot be negative.");
+        }
+        return sensors[index];
     }
 
     /** Sets the name of this experiment. **/
