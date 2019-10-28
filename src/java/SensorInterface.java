@@ -70,7 +70,7 @@ public abstract class SensorInterface implements Closeable
     @Deprecated // This method makes unnecessary copies of data
     public Sensor[] getSensors()
     {
-        return sensors.toArray();
+        return (Sensor[])sensors.toArray();
     }
 
     /** Manually adds a sensor to the interface, overriding and removing any sensors currently connected to the
@@ -186,7 +186,7 @@ public abstract class SensorInterface implements Closeable
     }
 
     /** Returns the sampling period this interface is currently using. **/
-    public void getSamplingPeriod()
+    public long getSamplingPeriod()
     {
         return samplingPeriod;
     }
@@ -228,7 +228,7 @@ public abstract class SensorInterface implements Closeable
         {
             throw new IllegalArgumentException("Specified sensor isn't currently connected to this interface. sensor=" + sensor.name);
         } else {
-            return setBatchBuffer(index, buffer);
+            setBatchBuffer(index, buffer);
         }
     }
 
@@ -253,7 +253,7 @@ public abstract class SensorInterface implements Closeable
     /** TODO **/
     protected void setBatchBuffers(DoubleBuffer[] dataBuffers)
     {
-        if(dataBuffers.size() != buffers.size())
+        if(dataBuffers.length != buffers.size())
         {
             throw new IllegalArgumentException("Provided buffer array doesn't match the size of the interfaces buffers.");
         }
@@ -292,7 +292,7 @@ public abstract class SensorInterface implements Closeable
       *                      has a chance to be closed, even if a previous component couldn't be. Such exceptions
       *                      should instead be passed to 'Main.handleException' for reporting, as is done here.
       * @throws IOException: If there's a problem communicating with or closing the sensor interface. **/
-    protected void close() throws IOException
+    public void close() throws IOException
     {
         // Close all the buffers still associated with this interface.
         for(DoubleBuffer buffer : buffers)
@@ -321,4 +321,7 @@ public abstract class SensorInterface implements Closeable
             }
         }
     }
+
+    /** TODO **/
+    protected abstract void close(Sensor sensor) throws IllegalArgumentException, IOException;
 }

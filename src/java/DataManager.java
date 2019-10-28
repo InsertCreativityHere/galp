@@ -94,7 +94,7 @@ public class DataManager
         DoubleBuffer[] buffers = new DoubleBuffer[ids.length];
         for(int i = 0; i < ids.length; i++)
         {
-            buffers[i] = getBuffer(id);
+            buffers[i] = getBuffer(ids[i]);
         }
         return buffers;
     }
@@ -109,12 +109,12 @@ public class DataManager
     }
 
     /** TODO **/
-    public Column[] getBuffers(long[] ids)
+    public Column[] getColumns(long[] ids)
     {
         Column[] columns = new Column[ids.length];
         for(int i = 0; i < ids.length; i++)
         {
-            columns[i] = getColumn(id);
+            columns[i] = getColumn(ids[i]);
         }
         return columns;
     }

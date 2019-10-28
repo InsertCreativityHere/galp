@@ -30,7 +30,7 @@ public class Trial implements Serializable
         for(int i = 0; i < bufferIDs.length; i++)
         {
             Sensor sensor = experiment.getSensor(i);
-            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.getVariable(), sensor.getUnits(), true);
+            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.variable, sensor.getUnits(), true);
         }
     }
 
@@ -45,10 +45,11 @@ public class Trial implements Serializable
         number = num;
         name = "Trial #" + number;
 
+        bufferIDs = new long[experiment.getSensorCount()];
         for(int i = 0; i < bufferIDs.length; i++)
         {
             Sensor sensor = experiment.getSensor(i);
-            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.getVariable(), sensor.getUnits(), size, true);
+            bufferIDs[i] = Main.dataManager.allocateBuffer(sensor.variable, sensor.getUnits(), count, true);
         }
     }
 
@@ -61,7 +62,7 @@ public class Trial implements Serializable
         experiment = parent;
         number = num;
         name = "Trial #" + number;
-        bufferIDs = bufferIDs;
+        this.bufferIDs = bufferIDs;
     }
 
     /** Returns the number of buffers being used by this trial. **/

@@ -32,7 +32,7 @@ public abstract class Sensor implements Closeable
       * @param var: The name of the variable that the sensor tracks.
       * @param units: The units that this sensor measures it's values in.
       * @param connected: whether or not the sensor is currently connected to it's interface and accessible. **/
-    public Sensor(SensorInterace parent, String name, String desc, String var, String units, boolean connected)
+    public Sensor(SensorInterface parent, String name, String desc, String var, String units, boolean connected)
     {
         controller = parent;
         this.name = name;
@@ -99,8 +99,12 @@ public abstract class Sensor implements Closeable
 
     /** Closes the sensor. This is used to perform any cleanup functions and let the sensor know it can power down.
       * @throws IOException: If an exception occurs while shutting down the sensor. **/
-    protected void close() throws IOException
+    public void close() throws IOException
     {
-        controller.close(this);
+        try{
+            controller.close(this);
+        } finally {
+            connected = false;
+        }
     }
 }
