@@ -10,4 +10,11 @@ public class Main
         GuiManager gui = new GuiManager();
         gui.displayGui();
     }
+
+    public static void handleException(String type, Exception exception)
+    {
+        System.err.println("Error encountered: " + exception.getMessage());
+        System.err.println("type = " + type);
+        exception.printStackTrace();
+    }
 }

@@ -56,14 +56,18 @@ public abstract class Sensor implements Closeable
         this.units = units;
     }
 
-    /** Takes a reading from the sensor and returns the measured value. **/
-    public double getReading()
+    /** Takes a reading from the sensor and returns the measured value.
+      * @return: A calibrated and unit-corrected reading from the sensor.
+      * @throws IOException: If there's a problem communicating with the sensor. **/
+    public double getReading() throws IOException
     {
         return controller.getReading(this);
     }
 
-    /** Takes an uncalibrated reading from the sensor and returns the measured value. **/
-    public double getReadingRaw()
+    /** Takes an uncalibrated reading from the sensor and returns the measured value.
+      * @return: The raw uncalibrated reading from the sensor.
+      * @throws IOException: If there's a problem communicating with the sensor. **/
+    public double getReadingRaw() throws IOException
     {
         return controller.getReadingRaw(this);
     }

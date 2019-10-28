@@ -159,6 +159,7 @@ public abstract class SensorInterface implements Closeable
                 values[i] = sensors.get(i).adjustReading(values[i]);
             }
         }
+        return values;
     }
 
     /** Takes a reading from every sensor this interface has, and returns them in an array. For interfaces with a fixed
