@@ -3,182 +3,322 @@ package net.insertcreativity.galp;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
+/**
+ * Base class all sensor interfaces extend. It specified the contracts and expected behavoir interfaces must provide
+ * and includes the basic field and functionality necessary for any sensor interface along with some convenience
+ * wrapper methods.
+**/
 public abstract class SensorInterface implements Closeable
 {
     public final String name;
     public final String description;
     private boolean connected;
-    protected final List<Sensor> sensors;
+    private long samplingPeriod;
+    protected final List<Sensor> sensors;// Mention this shouldnt really be used externally.
+    protected final List<DoubleBuffer> buffers;
 
-    public SensorInterface(String name, String desc, boolean connected)
+    /** Creates a new Sensor Interface.
+      * @param name: The display name for the sensor interface.
+      * @param desc: A brief description about the sensor interface.
+      * @param connected: Whether the sensor interface is currently connected.
+      * @param sensorCount:  **/
+    public SensorInterface(String name, String desc, boolean connected, int sensorCount)
     {
         this.name = name;
         description = desc;
         this.connected = connected;
+
+        sensors = new ArrayList<Sensor>(sensorCount);
+        buffers = new ArrayList<DoubleBuffer>(sensorCount);
     }
 
-    public abstract int getSensorCount();
-
-    public abstract Sensor getSensor(int index);
-
-    public abstract Sensor[] getSensors();
-
-    public abstract void addSensor(Sensor sensor, int index);
-
-    public abstract void rescanSensors();
-
-    public abstract void calibrate(Sensor sensor, double currentValue);
-
-    public abstract double getReading(Sensor sensor);
-
-    public abstract double getReadingRaw(Sensor sensor);
-
-    public abstract void setSensorState(Sensor sensor, boolean enabled);
-
-    public abstract void setSensorsState(Sensor[] sensors, boolean[] enabled);
-
-    public abstract double[] getReadings();
-
-    public abstract double[] getReadingsRaw();
- 
-    public abstract void setSamplingPeriod(long samplePeriod);
-
-    public abstract void getSamplingPeriod();
-
-    public abstract void startBatchReading();
-
-    public abstract void startBatchReading(int sampleCount);
-
-    public abstract void startBatchReading(Trigger start, Trigger stop);
-
-    public abstract void close() throws IOException;
-}
-
-
-
-
-
-public class VernierSensorInterface extends SensorInterface
-{
-    public static final PORT_COUNT = 4;
-    public final String name = "Vernier Sensor Adapter";
-    public final String description = "Arduino based adapter that interfaces Vernier LabMate sensors with a computer through a serial connection.\nIt provides basic functionality for controlling and reading Vernier Labmate sensors.";
-    private boolean connected;
-    private Sensor[] sensors;
-
-    public VernierSensorInterface()
+    /** Returns the number of sensors this interface supports. If there is no limit to the number of sesnsors this
+      * interface can simulataneously utilize, this returns -1. **/
+    public int getSensorCount()
     {
-        sensors = new Sensor[PORT_COUNT];
+        return sensors.size();
     }
 
-    public void close() throws IOException
+    /** Returns the sensor at the specified index. Usually indexes are representative of port numbers for interfaces
+      * that have dedicated sensor connection ports, but there is no strict contract for index meanings.
+      * @param index: The index of the sensor to retrieve.
+      * @return: A Sensor object representing the sensor assigned to the specified index, or null if no sensor is
+      *          assigned. Note, indexes outside the range supported by the interface will throw
+      *          IndexOutOfBoundsException instead. Null is only returned if the index is a valid sensor index, but
+      *          no sensors are currently on that index.
+      * @throws IndexOutOfBoundsException: If the provided index is outside the index range this interface supports. **/
+    public Sensor getSensor(int index)
     {
-
+        return sensors.get(index);
     }
-}
 
+    /** Retrieves the index that the specified sensor is assigned to, or -1 if the sensor isn't connected to this
+      * interface. */
+    public int getIndex(Sensor sensor)
+    {
+        return sensors.indexOf(sensor);
+    }
 
+    /** Returns an array of all the interface's sensors. For interfaces with a fixed number of sensor ports, the number
+      * of ports will always match the length of the returned array. For indexes where no sensor is currently connected
+      * it will instead have a value of null. The returned array allows obeys 'getSensors()[i]=getSensor(i)' for all
+      * valid indexes. Note, changes to the returned array won't impact the interface's sensor list, and vice versa.
+      * The returned array is a deep copy. As a result, using this method should be generally avoided. **/
+    @Deprecated // This method makes unnecessary copies of data
+    public Sensor[] getSensors()
+    {
+        return sensors.toArray();
+    }
 
+    /** Manually adds a sensor to the interface, overriding and removing any sensors currently connected to the
+      * specified index. This can be used to setup and use unsupported sensors or as a manual backup in case auto-
+      * detection of sensors fails to find a sensor. If any sensor is currently assigned that index it will be closed
+      * automatically before assigning the new sensor to it's index. This should not be called while readings are in
+      * progress, although you can if desired.
+      * @param sensor: The sensor to add to the interface. Often this will of had to of been constructed manually.
+      * @param index: The index to assign this sensor too.
+      * @throws IndexOutOfBoundsException: If the provided index is outside the range supported by this interface.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    @Deprecated // Manually overriding a sensor when the sensor isn't actually connected is a bad idea.
+    protected abstract void addSensor(Sensor sensor, int index) throws IOException;
 
+    /** Triggers the interface to automatically rescan all it's sensors. This will check for and automatically update
+      * any sensors that were removed from, or added to the interface. This should not be called while readings are in
+      * progress, although you can if desired.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    protected abstract void rescanSensors() throws IOException;
 
+    /** Takes a reading from the sensor assigned to the specified index and returns the calibrated value it measured.
+      * subclasses should override this method with a more efficient implementation.
+      * @param index: The index of the sensor to take the reading from.
+      * @return: a calibrated reading from the sensor.
+      * @throws IllegalArgumentException: If there is no sensor currently attached at the specified index.
+      * @throws IndexOutOfBoundsException: If the specified index is outside the range supported by this interface.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public double getReading(int index) throws IOException
+    {
+        double value = getReadingRaw(index);
+        return sensors.get(index).adjustReading(value);
+    }
 
-/**
- * Base interface all sensor interfaces implement. It provides methods for accessing and communicating with both
- * the actual sensor interface and any sensors attached to it.
-**/
-public interface SensorInterface extends Closeable
-{
-    /** Returns an object representing the sensor connected to the specified port.
-        @param port: The port number to check.
-        @return: Any sensor currently connected to the port, or null if there are no connected sensors. **/
-    public Sensor getSensor(int port);
-//TODO UPDATE TERMINOLOGY AND DOCS HERE DOWN
-    /** Returns an array of the sensor objects for each port of the interface.
-        @return: An array of sensor objects the same length as there are ports on the interface. For ports with a
-                 sensor connected, it's sensor object is used . For unconnected ports, the entry is set to null. **/
-    public Sensor[] getSensors();
+    /** Takes a reading from the specified sensor and returns the calibrated value it measured.
+      * Subclasses should override this method with a more efficient implementation.
+      * @param sensor: The sensor to take the reading from.
+      * @return: A calibrated reading from the sensor.
+      * @throws IllegalArgumentException: If the provided sensor isn't connected to this interface.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public double getReading(Sensor sensor) throws IOException
+    {
+        return sensor.adjustReading(getReadingRaw(sensor));
+    }
 
-    /** Returns whether or not this interface supports data buffering. **/
-    public boolean supportsBuffering();
+    /** Takes a reading from the sensor assigned to the specified index and returns the measured value uncalibrated
+      * (this also means that any unit transformations won't be applied). Subclasses should override this method with a
+      * more efficient implementation.
+      * @param index: The index of the sensor to take the reading from.
+      * @return: An uncalibrated reading from the sensor.
+      * @throws IllegalArgumentException: If there is no sensor currently attached at the specified index.
+      * @throws IndexOutOfBoundsException: If the specified index is outside the range supported by this interface.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public abstract double getReadingRaw(int index) throws IOException;
 
-    /** Sets the internal buffer size the interface should use for a port, and returns how much
-        buffer space was allocated. For interfaces that don't support buffering, this always returns -1.
-        Interfaces are free to allocate sizes different from the specified amount if they wish, so the returns value
-        of this method should always be checked.
-        @param port: The port number to specify the buffer size for.
-        @param size: Specifies the number of elements to allocate space for in the port's buffer. Buffers are always
-                     double arrays, so the actual memory footprint will be (8*size) many bytes. A buffer size of 0
-                     will disable buffering on the port.
-        @return: The number of elements successfully allocated. Interfaces are free to allocate memory different from
-                 the specified size for any number of reasons. So this method will always return the actual size of the
-                 buffer after the method is finished. A value of 0 indicates that buffering was disabled, negative
-                 values indicate an error occured in allocation, but the magnitude of the value still is the number of
-                 elements allocated in the buffer. **/
-    public int setBufferSize(int port, int size);
+    /** Takes a reading from the specified sensor and returns the measured value uncalibrated (this also means that any
+      * unit transformation won't be applied). Subclasses should override this method with a more efficient
+      * implementation.
+      * @param sensor: The sensor to take the reading from.
+      * @return: An uncalibrated raw reading from the sensor.
+      * @throws IllegalArgumentException: If the provided sensor isn't connected to this interface.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public double getReadingRaw(Sensor sensor) throws IOException
+    {
+        int index = sensors.indexOf(sensor);
+        if(index == -1)
+        {
+            throw new IllegalArgumentException("Specified sensor isn't currently connected to this interface. sensor=" + sensor.name);
+        } else {
+            return getReadingRaw(index);
+        }
+    }
 
-    /** Calibrates the sensor with a known value. **/
-    public boolean calibrate(double currentValue);
+    /** Takes a reading from every sensor this interface has, and returns them in an array. For interfaces with a fixed
+      * number of sensor ports, the array will always be the same length and in the same order as the ports. For ports
+      * that don't have a sensor connected, NaN will be recorded instead of a value. Otherwise the calibrated value
+      * measured by the sensor is recorded.
+      * @return: An array of calibrated readings from every sensor this interface has.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public double[] getReadings() throws IOException
+    {
+        double[] values = getReadingsRaw();
+        for(int i = 0; i < values.length; i++)
+        {
+            if(!Double.isNaN(values[i]))
+            {
+                values[i] = sensors.get(i).adjustReading(values[i]);
+            }
+        }
+    }
 
-    /** Returns a calibrated reading from the sensor on the specified port. This method will still returns a value
-        even if no sensor is attached to the specified port. **/
-    public double getReading(int port);
+    /** Takes a reading from every sensor this interface has, and returns them in an array. For interfaces with a fixed
+      * number of sensor ports, the array will always be the same length and in the same order as the ports. For ports
+      * that don't have a sensor connected, NaN will be recorded instead of a value. Otherwise a raw uncalibrated value
+      * measured by the sensor is recorded (this also means that any unit transformations won't be applied).
+      * @return: An array of uncalibrated readings from every sensor this interface has.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    public abstract double[] getReadingsRaw() throws IOException;
 
-    /** Returns a raw (uncalibrated) reading from the sensor on the specified port. This method will still return a
-        value even if no sensor is attached to the specified port. **/
-    public double getReadingRaw(int port);
+    /** Sets the sampling period to be used in batch readings. This is the period of time to wait in between taking
+      * consecutive measurements. Making the sampling period too small can result in serious instabilites both in
+      * the recorded data and the sensor hardware itself. Hence in cases where the interface deems the specified period
+      * too small it's free to either set the period as it pleases and only use the requested value as a hint or throw
+      * an exception indicating it can't support the requested period.
+      * @param samplePeriod: The period to wait between consecutive measurements (in nanoseconds).
+      * @return: The actual sampling period the interface set. The interface is free to only loosely use the requested
+      *          period due to constraints on timing resolution and stability concerns it may possess.
+      * @throws UnsupportedOperationException: If the interface physically cannot support the specified period.
+      * @throws IOException: If there's a problem communicating with the sensor interface. **/
+    protected long setSamplingPeriod(long samplePeriod) throws UnsupportedOperationException, IOException
+    {
+        samplingPeriod = samplePeriod;
+        return samplePeriod;
+    }
 
-    /** Sets the sampling period on the specified port, this specifies how long to wait between consecutive readings
-        on a sensor.
-        @param port: The port to set the sampling period of.
-        @param period: The number of microseconds to wait between consecutive samples are taken. Making this too small
-                       can result in serious instabalities both in measured values, and the sensor hardware itself. In
-                       some cases, the accuracy of this delay will be limited by the chronologistical resolution of the
-                       interface and sensors in use. For instance, many interfaces may only support up to millisecond
-                       resolutions.
-        @return: The actual sample period set on the port. For reasons explained above, this may differ from the
-                 specified period.**/
-    public long setSamplingPeriod(int port, long period);
+    /** Returns the sampling period this interface is currently using. **/
+    public void getSamplingPeriod()
+    {
+        return samplingPeriod;
+    }
 
-    /** Returns the current sampling period being used on the specified port. **/
-    public long getSamplingPeriod(int port);
+    /** Attaches a data buffer to the specified sensor that it can use for batch readings. Data values measured during
+      * the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor will be
+      * disabled for the duration of any batch readings and no data will be recorded from it. If there is already a
+      * data buffer attached to the sensor, the buffer will be closed and replaced by this one.
+      * @param index: The index of the sensor to attach the buffer to.
+      * @param buffer: The data buffer to attach to the sensor; if null then the sensor won't be used for any batch
+      *                readings until a non-null buffer is attached again.
+      * @throws IllegalArgumentException: If there is no sensor currently attached at the specified index.
+      * @throws IndexOutOfBoundsException: If the specified index is outside the range supported by this interface. **/
+    protected void setBatchBuffer(int index, DoubleBuffer buffer)
+    {
+        if(sensors.get(index) == null)
+        {
+            throw new IllegalArgumentException("There is no sensor currently attached at index " + index);
+        }
+        DoubleBuffer oldBuffer = buffers.set(index, buffer);
+        if(oldBuffer != null)
+        {
+            oldBuffer.close();
+        }
+    }
 
-    /** Starts a batch reading on the specified port. If there is no sensor attached to the port, this immediately
-        returns a closed buffer. Values will be read into the buffer once per sample period until manually stopped.
-        @param port: The port to start the batch reading on.
-        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
-                 as they're received from the sensor. When the reading is stopped, the buffer will be marked closed.**/
-    public DoubleBuffer startBatchReading(int port);
+    /** Attaches a data buffer to the specified sensor that it can use for batch readings. Data values measured during
+      * the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor will be
+      * disabled for the duration of any batch readings and no data will be recorded from it. If there is already a
+      * data buffer attached to the sensor, the buffer will be closed and replaced by this one.
+      * @param sensor: The sensor to attach the buffer to.
+      * @param buffer: The data buffer to attach to the sensor; if null then the sensor won't be used for any batch
+      *                readings until a non-null buffer is attached again.
+      * @throws IllegalArgumentException: If the provided sensor isn't connected to this interface. **/
+    protected void setBatchBuffer(Sensor sensor, DoubleBuffer buffer)
+    {
+        int index = sensors.indexOf(sensor);
+        if(index == -1)
+        {
+            throw new IllegalArgumentException("Specified sensor isn't currently connected to this interface. sensor=" + sensor.name);
+        } else {
+            return setBatchBuffer(index, buffer);
+        }
+    }
 
-    /** Starts a batch reading on the specified port. If there is no sensor attached to the port, this immediately
-        returns a closed buffer. The specified number of values will be read from the sensor, one per sample period,
-        unless the reading is prematurely manually stopped. Once count many readings have been taken, the buffer is
-        marked as closed.
-        @param port: The port to start the batch reading on.
-        @param count: The number of readings to take.
-        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
-                 as they're received from the sensor. When count many readings have been taken, or the batch has been
-                 manually stopped, the buffer is marked as closed.**/
-    public DoubleBuffer startBatchReading(int port, int count);
-//TODO DOCUMENTATION UP FROM HERE
-    /** Starts a batch reading on the specified port when the start trigger evaluates as true, and continues reading
-        until either the end trigger evaluates as true, or the reading is manually stopped. If there is no sensor
-        attached to the port, this immediately returns a closed buffer. A reading is taken from the sensor once per
-        sample period, and when the end trigger evaluates true, the buffer is marked as closed.
-        @param port: The port to start the batch reading on.
-        @param start: Trigger condition that specifies when to start the readings.
-        @param end: Trigger condition that specified when to end the readings.
-        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
-                 as they're received from the sensor. When the end trigger evaluates true, or the batch has been
-                 manually stopped, the buffer is marked as closed. **/
-    public DoubleBuffer startBatchReading(int port, Trigger start, Trigger end);
+    /** TODO **/
+    protected void setBatchBuffers(Sensor[] sensors, DoubleBuffer[] dataBuffers)
+    {
+        for(int i = 0; i < sensors.length; i++)
+        {
+            setBatchBuffer(sensors[i], dataBuffers[i]);
+        }
+    }
 
-    /** Manually terminates a batch reading. This will immediately cancel the session, regardless of any
-        triggers or specified reading counts. Any already recorded data will still remain in it's buffer.
-        @param port: The port to stop reading on. **/
-    public void stopBatchReading(int port);
+    /** TODO **/
+    protected void setBatchBuffers(int[] indexes, DoubleBuffer[] dataBuffers)
+    {
+        for(int i = 0; i < indexes.length; i++)
+        {
+            setBatchBuffer(indexes[i], dataBuffers[i]);
+        }
+    }
 
-    /** Closes the sensor interface and performs any necessary cleanup.
-        @throws IOException: If an error occurs while closing. **/
-    public void close() throws IOException;
+    /** TODO **/
+    protected void setBatchBuffers(DoubleBuffer[] dataBuffers)
+    {
+        if(dataBuffers.size() != buffers.size())
+        {
+            throw new IllegalArgumentException("Provided buffer array doesn't match the size of the interfaces buffers.");
+        }
+        for(int i = 0; i < buffers.size(); i++)
+        {
+            setBatchBuffer(i, dataBuffers[i]);
+        }
+    }
+
+    /** Detaches and closes any data buffers currently held by any sensors connected to this interface. **/
+    protected void closeBatchBuffers()
+    {
+        for(int i = 0; i < buffers.size(); i++)
+        {
+            setBatchBuffer(i, null);
+        }
+    }
+
+    /** TODO **/
+    protected abstract void startBatchReading() throws IOException;
+
+    /** TODO **/
+    protected abstract void startBatchReading(int sampleCount) throws IOException;
+
+    /** TODO **/
+    protected abstract void startBatchReading(Trigger start, Trigger stop) throws IOException;
+
+    /** TODO **/
+    protected abstract void stopBatchReading() throws IOException;
+
+    /** Closes the sensor interface, any sensors still connected to it, and any associated buffers that are still open.
+      * Subclasses should override this to perform any necessary cleanup of their own.
+      * @throws IOException: If an error occurs while closing. This exception should only be thrown is there's an issue
+      *                      closing the actual interface. Any exceptions that arise while closing subcomponents or
+      *                      connected sensors should not be rethrown by this method to ensure everything has a chance
+      *                      has a chance to be closed, even if a previous component couldn't be. Such exceptions
+      *                      should instead be passed to 'Main.handleException' for reporting, as is done here.
+      * @throws IOException: If there's a problem communicating with or closing the sensor interface. **/
+    protected void close() throws IOException
+    {
+        // Close all the buffers still associated with this interface.
+        for(DoubleBuffer buffer : buffers)
+        {
+            if(buffer != null)
+            {
+                try {
+
+                } catch(Exception exception)
+                {
+                    Main.handleException("closing", exception);
+                }
+            }
+        }
+        // Close all the sensors still attached to this interface.
+        for(Sensor sensor : sensors)
+        {
+            if(sensor != null)
+            {
+                try {
+                    sensor.close();
+                } catch(Exception exception)
+                {
+                    Main.handleException("closing", exception);
+                }
+            }
+        }
+    }
 }
