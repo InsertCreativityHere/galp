@@ -88,7 +88,8 @@ public class DataManager
         }
     }
 
-    /** TODO **/
+    /** Returns an array of buffer objects, one for each id in the provided array. If any of the IDs don't correspond
+      * to a registered buffer, the corresponding entry is set to null instead. **/
     public DoubleBuffer[] getBuffers(long[] ids)
     {
         DoubleBuffer[] buffers = new DoubleBuffer[ids.length];
@@ -108,7 +109,8 @@ public class DataManager
         }
     }
 
-    /** TODO **/
+    /** Returns an array of column objects, one for each id in the provided array. If any of the IDs don't correspond
+      * to a registered column, the corresponding entry is set to null instead. **/
     public Column[] getColumns(long[] ids)
     {
         Column[] columns = new Column[ids.length];

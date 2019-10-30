@@ -13,11 +13,24 @@ import java.util.List;
 **/
 public abstract class SensorInterface implements Closeable
 {
+    // The display name of the sensor interface.
     public final String name;
+    // A brief description about the sensor interface.
     public final String description;
+    // Flag indicating whether the interface is currently connected and usable.
     private boolean connected;
+    // The period of time the interface should wait between consecutive readings during batch readings (in nanoseconds).
     private long samplingPeriod;
-    protected final List<Sensor> sensors;// Mention this shouldnt really be used externally.
+    // List of all the sensors connected to this interface. Values of null indicate that a sensor could be registered
+    // at the specified index, however there's no sensor currently connected at that index. This is provided solely for
+    // use by implementing subclasses and shouldn't be used or modified externally.
+    @Deprecated // Direct modifications of the sensors can cause serious instabilities.
+    protected final List<Sensor> sensors;
+    // List of all the data buffers this sensor is the owner of. This list will always be the same length, and indexed
+    // in the same order as sensors. So the ith buffer will contain data read from the ith sensor. These are only used
+    // during batch readings, and is provided solely for use by implementing subclasses and shouldn't be used or
+    // modified externally.
+    @Deprecated // Direct modifications of the buffers can cause serious instabilities.
     protected final List<DoubleBuffer> buffers;
 
     /** Creates a new Sensor Interface.
@@ -195,7 +208,7 @@ public abstract class SensorInterface implements Closeable
     /** Attaches a data buffer to the specified sensor that it can use for batch readings. Data values measured during
       * the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor will be
       * disabled for the duration of any batch readings and no data will be recorded from it. If there is already a
-      * data buffer attached to the sensor, the buffer will be closed and replaced by this one.
+      * data buffer attached to the sensor, that buffer will be closed and replaced by this one.
       * @param index: The index of the sensor to attach the buffer to.
       * @param buffer: The data buffer to attach to the sensor; if null then the sensor won't be used for any batch
       *                readings until a non-null buffer is attached again.
@@ -217,7 +230,7 @@ public abstract class SensorInterface implements Closeable
     /** Attaches a data buffer to the specified sensor that it can use for batch readings. Data values measured during
       * the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor will be
       * disabled for the duration of any batch readings and no data will be recorded from it. If there is already a
-      * data buffer attached to the sensor, the buffer will be closed and replaced by this one.
+      * data buffer attached to the sensor, that buffer will be closed and replaced by this one.
       * @param sensor: The sensor to attach the buffer to.
       * @param buffer: The data buffer to attach to the sensor; if null then the sensor won't be used for any batch
       *                readings until a non-null buffer is attached again.
@@ -233,16 +246,16 @@ public abstract class SensorInterface implements Closeable
         }
     }
 
-    /** TODO **/
-    protected void setBatchBuffers(Sensor[] sensors, DoubleBuffer[] dataBuffers)
-    {
-        for(int i = 0; i < sensors.length; i++)
-        {
-            setBatchBuffer(sensors[i], dataBuffers[i]);
-        }
-    }
-
-    /** TODO **/
+    /** Attaches data buffers to the specified sensors that they can use for batch readings. Data values measured
+      * during the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor
+      * will be disabled for the duration of any batch readings and no data will be recorded from it. If there is
+      * already a data buffer attached to the sensor, that buffer will be closed and replaced by this one.
+      * @param indexes: Array of indexes specifying which sensor to set which buffer to.
+      * @param dataBuffers: The data buffers to attach to the sensors. Buffers are attached in order so dataBuffers[i]
+      *                     will be attached to the sensor with index indexes[i]. If null, then the sensor won't be
+      *                     used for any batch readings until a non-null buffer is attached again.
+      * @throws IllegalArgumentException: If any of the indexes are valid but there aren't any sensors connected at it.
+      * @throws IndexOutOfBoundsException: If any of the indexes are outside the range supported by this interface. **/
     protected void setBatchBuffers(int[] indexes, DoubleBuffer[] dataBuffers)
     {
         for(int i = 0; i < indexes.length; i++)
@@ -251,16 +264,20 @@ public abstract class SensorInterface implements Closeable
         }
     }
 
-    /** TODO **/
-    protected void setBatchBuffers(DoubleBuffer[] dataBuffers)
+    /** Attaches data buffers to the specified sensors that they can use for batch readings. Data values measured
+      * during the batch reading will be written into the buffer in real-time. If the buffer is null, then the sensor
+      * will be disabled for the duration of any batch readings and no data will be recorded from it. If there is
+      * already a data buffer attached to the sensor, that buffer will be closed and replaced by this one.
+      * @param sensors: Array of all the sensors to set the buffers for.
+      * @param dataBuffers: The data buffers to attach to the sensors. Buffers are attached in order so dataBuffers[i]
+      *                     will be attached to sensors[i]. If null, then the sensor won't be used for any batch
+      *                     readings until a non-null buffer is attached again.
+      * @throws IllegalArgumentException: If any of the provided sensors aren't connected to this interface. **/
+    protected void setBatchBuffers(Sensor[] sensors, DoubleBuffer[] dataBuffers)
     {
-        if(dataBuffers.length != buffers.size())
+        for(int i = 0; i < sensors.length; i++)
         {
-            throw new IllegalArgumentException("Provided buffer array doesn't match the size of the interfaces buffers.");
-        }
-        for(int i = 0; i < buffers.size(); i++)
-        {
-            setBatchBuffer(i, dataBuffers[i]);
+            setBatchBuffer(sensors[i], dataBuffers[i]);
         }
     }
 
@@ -273,56 +290,70 @@ public abstract class SensorInterface implements Closeable
         }
     }
 
-    /** TODO **/
+    /** Starts a batch reading. Once per sample period, a value is read from every sensor with a data buffer backing it
+      * and written into said data buffer. This continues until manually stopped by a call to 'stopBatchReading'. **/
     protected abstract void startBatchReading() throws IOException;
 
-    /** TODO **/
+    /** Starts a batch reading. Once per sample period, a value is read from every sensor with a data buffer backing it
+      * and written into said data buffer. The batch reading will end after 'sampleCount' many sample periods have
+      * passed, or it's manually stopped by a call to 'stopBatchReading'. **/
     protected abstract void startBatchReading(int sampleCount) throws IOException;
 
-    /** TODO **/
+    /** Schedules a batch reading which will start when the start condition is triggered and will continue until the
+      * end condition is triggered. During this time, once per sample period, a value is read from every sensor with a
+      * data buffer backing it and written into said ata buffer. This ends either when the end condition is triggered
+      * or it's manually stopped by a call to 'stopBatchReading'. **/
     protected abstract void startBatchReading(Trigger start, Trigger stop) throws IOException;
 
-    /** TODO **/
+    /** Immediately stops any running batch readings regardless of their normal ending condition. **/
     protected abstract void stopBatchReading() throws IOException;
 
     /** Closes the sensor interface, any sensors still connected to it, and any associated buffers that are still open.
       * Subclasses should override this to perform any necessary cleanup of their own.
-      * @throws IOException: If an error occurs while closing. This exception should only be thrown is there's an issue
-      *                      closing the actual interface. Any exceptions that arise while closing subcomponents or
-      *                      connected sensors should not be rethrown by this method to ensure everything has a chance
-      *                      has a chance to be closed, even if a previous component couldn't be. Such exceptions
-      *                      should instead be passed to 'Main.handleException' for reporting, as is done here.
-      * @throws IOException: If there's a problem communicating with or closing the sensor interface. **/
+      * @throws IOException: If there's a problem communicating with or closing the sensor interface. This exception
+      *                      should only be thrown for issues arising from closing the sensor interface itself.
+      *                      Exceptions from closing individual sensors or subcomponents should be passed to
+      *                      'Main.handleException'. This ensures everything has a chance to be closed. **/
     public void close() throws IOException
     {
-        // Close all the buffers still associated with this interface.
-        for(DoubleBuffer buffer : buffers)
-        {
-            if(buffer != null)
-            {
-                try {
-
-                } catch(Exception exception)
-                {
-                    Main.handleException("closing", exception);
-                }
-            }
-        }
         // Close all the sensors still attached to this interface.
         for(Sensor sensor : sensors)
         {
             if(sensor != null)
             {
                 try {
-                    sensor.close();
+                    close(sensor);
                 } catch(Exception exception)
                 {
                     Main.handleException("closing", exception);
                 }
             }
         }
+        // Close all the buffers still associated with this interface.
+        for(DoubleBuffer buffer : buffers)
+        {
+            if(buffer != null)
+            {
+                buffer.close();
+            }
+        }
     }
-
-    /** TODO **/
-    protected abstract void close(Sensor sensor) throws IllegalArgumentException, IOException;
+    /** Closes the specified sensor and any buffers associeated with it that are still open.
+      * Subclasses should override this to perform any additional cleanup of their own, and to notify the interface of
+      * the sensor's closure.
+      * @throws IOException: If there's a problem communicating with or closing the sensor hardware.
+      * @throws IllegalArgumentException: If the provided sensor isn't connected to this interface. **/
+    protected abstract void close(Sensor sensor) throws IOException
+    {
+        int index = sensors.indexOf(sensor);
+        if(index == -1)
+        {
+            throw new IllegalArgumentException("Specified sensor isn't currently connected to this interface. sensor=" + sensor.name);
+        } else {
+            if(buffers[i] != null)
+            {
+                buffers[i].close();
+            }
+        }
+    }
 }
