@@ -1,4 +1,24 @@
 
+// Define a default BAUD_RATE of 9600 if none were defined by GALP.
+#ifndef BAUD_RATE
+    #define BAUD_RATE 9600
+#endif
+
+// Define a default SRAM_SIZE of 2048 (The amount of SRAM an Arduino Uno Rev3 has) if none were defined by GALP.
+#ifndef SRAM_SIZE
+    #define SRAM_SIZE 2048
+#endif
+
+//===== Macro constants =====//
+
+
+
+
+
+
+
+
+
 //===== Macros =====//
 // This program makes use of macros; these are programming instructions that are run when the program is first
 // compiled, before the actual program ever starts running. This means they take up no space and don't use any
@@ -376,7 +396,9 @@ inline void handleAnalogReadFinished()
     // If the reading was taken from pin A0 (analog sensor 1)
     if(currentPin == 0)
     {
+        // Write the values into the tempdatastore.
 
+        // 
     }
     // If the reading was taken from pin A1 (analog sensor 1)
     else if(currentPin == 1)
