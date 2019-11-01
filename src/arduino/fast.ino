@@ -19,15 +19,6 @@
 //
 // DEBUG:       Specifies whether to run the program in debug mode. //TODO there's no debug mode yet.
 //
-// NO_COMPRESS: Specifies whether to compress data readings. If this is set, then the program runs in uncompressed
-//              mode and every data reading takes up 2 bytes (16 bits) or storage. If this isn't set the program
-//              runs in compressed mode, where data readings only take up 10 bits of space). This macro can only
-//              be set externally, so by default the program runs in compressed mode.
-//              This exists because sensor readings only vary between 0 and 1024 (this is a hardware limitation),
-//              and it only takes 10 bits to encode numbers up to 1024, so the other 6 bits are wasted space.
-//              Hence, by not storing the extra 6 bits alot of space can be saved, however this causes an increase
-//              in program complexity. This option is provided to disable the more complex behavoir if necessary.
-//
 // BACKUP:      Specifies whether the program should store a backup of it's current settings before it starts running
 //              hence providing a fallback in the case this program acidentally bricks the Arduino. It stores a full
 //              backup of all the Arduino's registers in EEPROM memory, which persists even after power is
@@ -85,6 +76,7 @@ const uint32_t DATA_BUFFER_SIZE = SRAM_SIZE * 0.6
 // and erased from the buffer without ever needed to shift elements around (as long as they're also done in order).
 // For more information on circular buffers, check out:
 //         https://en.wikipedia.org/wiki/Circular_buffer
+// Note: every reading taken from the Vernier interface takes up exactly 6 bytes of space.
 volatile uint8_t[] dataBuffer = new uint8_t[DATA_BUFFER_SIZE];
 // This is the starting position of valid data in the buffer. Since it's a circular buffer, data doesn't start at
 // offset 0 like a normal buffer. Instead of actually removing a byte once it's been handled, this variable just
@@ -213,150 +205,46 @@ void loop()
 
 /** This is an "Interrupt Service Routine". It's a function that will be run whenever TIMER1 reaches it's
   * compare-match value (COMP1A). It quickly takes a reading from all the sensors that are being used and
-  * stores it in the data buffer. **/
+  * stores it in the data buffer.
+  *
+  * Within this program, this function is called during batch readings once every sample period. **/
 ISR(TIMER1_COMPA_vect)
 {
-    if(
+    // Temporary variables used to store the data of sensor readings until it's placed into the data buffer.
+    // These variables should be treated as one 48 bit long variable (tempDataA, tempDataB). It's encoded as:
+    // bits 0~9:   Store the value read from pin A0 (0~5v analog sensor 1).
+    // bits 10~19: Store the value read from pin A1 (-10~10v analog sensor 1).
+    // bits 20~29: Store the value read from pin A2 (0~5v analog sensor 2).
+    // bits 30~39: Store the value read from pin A3 (-10~10v analog sensor 2).
+    // bits 40~43: Store the values of digital pins 2,3,4,5 in order.
+    // bits 44~47: Store the values of digital pins 6,7,8,9 in order.
+    static uint32_t tempDataA = B00000000000000000000000000000000;
+    static uint16_t tempDataB = B0000000000000000;
+    // If analog sensor 1 is enabled for batch readings.
+    if(ANALOG_1_ENABLED & sensorFlags)
+    {
+        // Take an analog reading from A0 and write it into bits 0~9 of the temporary variables.
+        tempDataA |= analogRead(A0);
+        // Take an analog reading from A1 and write it into bits 10~19 of the tempeorary variables. This means
+        // shifting the variable over by 10 bits and casting it to a 32bit value (so there's enough bits to shift).
+        tempDataA |= ((uint32_t)analogRead(A1));
+    }
+    // If analog sensor 2 is enabled for batch readings.
+    if(ANALOG_2_ENABLED & sensorFlags)
+    {
+        // Take an analog reading from A2 and write it into bits 20~29 of the temporary variables.
+        tempDataA |=
+        // Take an analog reading from A3 and write it into bits 30~39 of the temporary variables.
+        tempDataB
+    }
+    // If digital sensor 1 is enabled for batch readings.
+    if(DIGITAL_1_ENABLED & sensorFlags)
+    {
+
+    }
+    // If digital sensor 2 is enabled for batch readings.
+    if(DIGITAL_1_ENABLED & sensorFlags)
+    {
+
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Here we calculate constants that can be accessed anywhere else in the program. We write these values into
-// the Arduino's flash memory to save SRAM space for variables, this is accomplished with the PROGMEM keyword.
-// The downside to this is they have to be read with a special function 'pgm_read_dword(...)' instead of being
-// accessible like a normal variable.
-
-// The amount of space to allocate to the data buffer. We allocate 60% of the system's SRAM for the data buffer.
-const PROGMEM uint32_t DATA_BUFFER_SIZE = SRAM_SIZE * 0.6;
-
-// The buffer that sensor readings are stored in.
-volatile byte[] dataBuffer = new byte[BUFFER_SIZE];
-volatile BUFFER_LENGTH_TYPE bufferPosition = 0;
-
-
-
-
-//===== Global constants =====//
-// Here we calculate constants that can be accessed anywhere else in the program. We write these values into
-// the Arduino's flash memory to save SRAM space for variables, this is accomplished with the PROGMEM keyword.
-// The downside to this is they have to be read with a special function 'pgm_read_dword(...)' instead of being
-// accessible like a normal variable.
-
-// The amount of space to allocate to the data buffer. We allocate 60% of the system's SRAM for the data buffer.
-const PROGMEM uint32_t DATA_BUFFER_SIZE = SRAM_SIZE * 0.6;
-
-
-// We define some constants that are specific to the Arduino Uno board this program is being written for.
-
-// The amount of SRAM storage the board has (in bytes). This is fast random-access memory intended for storing
-// the bulk of the program's variables and non-constant data. It's fast but limited, and wiped when power is lost.
-#define SRAM_SIZE   2048
-// The amount of Flash storage the board has (in bytes). This is slow memory meant for storing the actual program
-// code itself and other essential code like the board's bootloader. Data stored in it persists even after power loss.
-#define FLASH_SIZE  32768
-// The amount of EEPROM storage the board has (in bytes). This is slow memory meant for storing long-term data
-// for the program. Data stored in it persists even after power loss.
-#define EEPROM_SIZE 1024
-
-//TODO NEED TO CALCULATE BUFFER_SIZE
-
-
-// MODEL:       Stores the name of the Arduino model this program is going to be uploaded to. This is used to set
-//              model specific parameters like memory sizes. This default to 'UnoRev3', the board this project is
-//              being developed for.
-
-// This defines a default model of "UnoRev3" is one wasn't already defined.
-#ifndef MODEL
-    #define MODEL UnoRev3
-#endif
-
-
-
-    //===== Setting up the system timers =====//
-    // Within this program we use the system timers to ensure that measurements are taken at exact and accurate
-    // intervals. Arduinos have 3 timers, TIMER0, TIMER1, and TIMER2. TIMER0 is used for system functions and
-    // shouldn't be messed with, so we use TIMER1 (TIMER1 is also 16 bits instead of only 8 bits like TIMER2).
-    //
-    // To control timer behavior, we again directly set it's registers with bitwise operations.
-    // TCCR stands for "Timer/Counter Control Register", and is used to control the timer behavior. TCCR1A and
-    // TCCR1B control the behavior of TIMER1.
-
-    // First clear the registers to disable the TIMER1 routines while we set everything up.
-    TCCR1A = B00000000;
-    TCCR1B = B00000000;
-
-
-    //===== Setting the interrupt routines =====//
-
-
-
-
-// This defines the default BAUD_RATE to use for the Arduino's serial connection using C-macros. "ifndef" stands for
-// "if not defined"; so it first checks if "BAUD_RATE" has already been defined, and if it hasn't been, it sets it to
-// 9600 (default baud rate for serial communication).
-// However, this allows for the baud rate to be defined somewhere else, and then this program will use that baud rate
-// instead of the one set here. This way the main GALP program can specify a baud rate to use on the fly.
-
-
-
-    // DDR = Data Direction Register. These control whether or not pins are in input (0) or output (1) mode.
-    // Input mode means the pins passively record voltages (say for taking a reading from a sensor), and output
-    // mode means the pin instead supplies voltage (you can supply a changing voltage to signal commands to the
-    // the Vernier interface for instance.
-    //
-    // There are 3 registers, DDRB controls digital pins 8~13, DDRC controls the analog pins A0~A5, and DDRD
-    // controls digital pins 0~7. However digital pins 0 and 1 are specially reserved for communication over
-    // the serial port, and shouldn't be messed with.
-    // For information on how port manipulation works and what it is, you can read about it here:
-    //        https://www.arduino.cc/en/Reference/PortManipulation
-    //
-    // Bitwise Operations:
-    // &= is a bitwise AND, it doesn't affect any bits where there's a 1, but 0's out bits where there's a 0.
-    // |= is a bitwise OR, it doesn't affect any bits where there's a 0, but sets any bits to 1 where there's a 1.
-    //
-    // Pin Mappings:
-    // The Arduino has 6 analog pins (A0, A1, A2, A3, A4, and A5), and 12 digital pins (0, 1, ..., 12, 13).
-    // Pins 0 and 1 are reserved by the board for serial communication. The rest are free for use. The Vernier
-    // interface uses the following mapping:
-    //     A0~A3 are used for taking readings from the analog sensors.
-    //     A4    is used to measure resistances due to the board's components, this value is used to compensate
-    //           and calibrate the voltages read from the sensors.
-    //     A5    is used to identify sensors. Every sensor has a slightly different internal resistance; readings
-    //           from this pin can use this fact to tell what kind of sensor is connected.
-    //     2~9   are used for communicating with and taking readings from digital sensors.
-    //     10,11 are used for multiplex (mux) addressing. All 4 sensors share A4 and A5 for transmitting resistance
-    //           information. So in order to get resistance readings for a single sensor, these pins are used to
-    //           tell the Vernier interface the 'address' of the sensor to transmit. The 'MUX ADDR's are printed on
-    //           the Vernier interface with each address being 2 bits. The first bit (most significant bit)
-    //           corresponds to pin 11, and the second bit (least significant bit) corresponds to pin 10. So, for
-    //           example, having pin10=1 and pin11=0 will give the mux address '01', which corresponds to 'ANALOG 2'.
-    //     12    This is mapped to the button on the vernier interface.
-    //     13    This is mapped to the LED on the vernier interface.
-
-    // Clear every pin except pin 14 and 15. These bits are used to set the board's internal crystal pins which
-    // shouldn't be messed with. This cleans pins 8, 9, 10, 11, 12, 13.
-    DDRB &= B11000000;
-    DDRB |= B
-
-    // Clear every analog pin except pin A6 and A7 because they don't exist. All other pins are reset to 0.
-    // This clears pins A0, A1, A2, A3, A4, A5.
-    DDRC &= B11000000;
-    // Leave every pin in input mode. We never need to output anything from the analog ports.
-    DDRC |= B00000000;
-
-    // Clear every pin except pin 0 and pin 1, these are reserved for serial communication. This resets all the
-    // other pins to 0 (input mode). This clears pins 2, 3, 4, 5, 6, 7.
-    DDRD &= B00000011;
-    // Set pins 3, 4, 5, 6, 7 as outputs. Leave pin 2 as input, and also doesn't change pins 0 or 1.
-    DDRD |= B11111000;
