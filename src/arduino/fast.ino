@@ -1,4 +1,6 @@
 
+//===== Macro Constants =====//
+
 // Define a default BAUD_RATE of 9600 if none were defined by GALP.
 #ifndef BAUD_RATE
     #define BAUD_RATE 9600
@@ -9,161 +11,152 @@
     #define SRAM_SIZE 2048
 #endif
 
-//===== Macro constants =====//
-
-
-
-
-
-
-
-
-
-//===== Macros =====//
-// This program makes use of macros; these are programming instructions that are run when the program is first
-// compiled, before the actual program ever starts running. This means they take up no space and don't use any
-// processing power, since by the time the program starts running, all the macros will of already been run and
-// handled.
-//
-// Additionally macros can be 'defined' (given a value) outside the program. So the main GALP program can use
-// whatever macro values it thinks are most appropiate when uploading the program to the Arduino before starting it.
-// The following are all the macros that can be set outside this program:
-//
-// BAUD_RATE:   Sets the speed of the serial interface the Arduino uses to communicate with the client. Within this
-//              context the baud rate is equivalent to bits per second. For a list of supported baud rates, check:
-//                      https://www.arduino.cc/en/Serial.Begin
-//              This defaults to 9600 (the standard baud rate for most connections).
-//
-// SRAM_SIZE:   Specifies the amount of SRAM memory the Arduino has in bytes. This defaults to 2048, the amount of
-//              SRAM contained on the Arduino Uno Rev3 board.
-//
-// DEBUG:       Specifies whether to run the program in debug mode. //TODO there's no debug mode yet.
-//
-// BACKUP:      Specifies whether the program should store a backup of it's current settings before it starts running
-//              hence providing a fallback in the case this program acidentally bricks the Arduino. It stores a full
-//              backup of all the Arduino's registers in EEPROM memory, which persists even after power is
-//              disconnected. Setting pin 12 high will cause the program to immediately halt it's execution and do a
-//              full restore from the backup. Pin 12 can be set high by pushing the button on the Vernier interface.
-//              By default this isn't enabled, but it's a good idea to use while GALP is still in developement.
-
-// This defines a default baud rate of 9600 for the serial connection is one wasn't already defined.
-#ifndef BAUD_RATE
-    #define BAUD_RATE 9600
-#endif
-
-// This defines a default sram_size value of 2048 bytes if one wasn't already defined.
-#ifndef SRAM_SIZE
-    #define SRAM_SIZE 2048
-#endif
-
-
-// We define some other macro constants for making this code more readable and easier to write.
-
-// Bitmask that can be used with sensorFlags to tell if the analog-1 sensor is currently connected.
+//=== Bitmasks that can be used with `sensorFlags` to determine whether a sensor is connected and/or batch enabled.
 #define ANALOG_1_CONNECTED B00000001
-// Bitmask that can be used with sensorFlags to tell if the analog-2 sensor is currently connected.
 #define ANALOG_2_CONNECTED B00000010
-// Bitmask that can be used with sensorFlags to tell if the digital-1 sensor is currently connected.
 #define DIGITAL_1_CONNECTED B00000100
-// Bitmask that can be used with sensorFlags to tell if the digital-2 sensor is currently connected.
 #define DIGITAL_2_CONNECTED B00001000
-// Bitmask that can be used with sensorFlags to tell if the analog-1 sensor is enabled for batch readings.
 #define ANALOG_1_ENABLED B00010000
-// Bitmask that can be used with sensorFlags to tell if the analog-2 sensor is enabled for batch readings.
 #define ANALOG_2_ENABLED B00100000
-// Bitmask that can be used with sensorFlags to tell if the digital-1 sensor is enabled for batch readings.
 #define DIGITAL_1_ENABLED B01000000
-// Bitmask that can be used with sensorFlags to tell if the digital-2 sensor is enabled for batch readings.
 #define DIGITAL_2_ENABLED B10000000
 
-// Bitmask that can be used with statusFlags to tell if a reading is currently being taken.
+//=== Bitmasks that can be used with `statusFlags` to get the current call statuses of the Arduino.
 #define READING_IN_PROGRESS B00000001
+// Reading type of 0 indicates a non-batch reading, otherwise it's a batch reading.
+#define READING_TYPE B00000010
+// Bitmasks that can be used to tell which analog pins are used by any sensors currently connected to the interface.
+#define A0_ENABLED B00010000
+#define A1_ENABLED B00100000
+#define A2_ENABLED B01000000
+#define A3_ENABLED B10000000
 
-// Bitmask that should always be ORd when setting the ADMUX (Analog to Digital Multiplexer).
-// This controls settings on how analog readings are taken and the reference voltage they use.
-// The first 4 bits of this set that the readings should be stored 'left-adjusted' and that the
-// board's internal 5v power supply should be used as a reference voltage. The last 4 bits set
-// which analog pin to measure, for more information check out "takeReading()".
+//=== Bitmasks for reading and writing from the ADMUX register.
+// Prefix for setting the ADC reference voltage to the onboard 5v power supply.
 #define ADMUX_PREFIX B01000000
-// Bitmask that can be applied to the ADMUX register to get the address of the analog pin that
-// the reading was taken from.
-#define ADMUX_ADDRESS_MASK B00001111
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
+// Bitmask that can be used to read the current address stored in the ADMUX register.
+#define ADMUX_ADDRESS B00001111
+// The ADMUX address for the analog pins.
 #define A0_ADDRESS B00000000
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
 #define A1_ADDRESS B00000001
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
 #define A2_ADDRESS B00000010
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
 #define A3_ADDRESS B00000011
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
 #define A4_ADDRESS B00000100
-// Multiplex address for pin A0, setting this in ADMUX will make it measure pin A0.
 #define A5_ADDRESS B00000101
 
-
-//===== Global constants =====//
-// Here we calculate constants that can be accessed anywhere else in the program.
-
-// The amount of space to allocate to the data buffer. We allocate 60% of the system's SRAM for the data buffer.
-const uint32_t DATA_BUFFER_SIZE = SRAM_SIZE * 0.6;
-
-
-
 //===== Global Variables =====//
-// These are variables that can be accessed from anywhere else in the program, and are stored in the system's SRAM,
-// making them behave like expected of any normal variable.
-
-// The buffer that sensor readings are stored in in between transmissions to the client. This is a "circular buffer",
-// meaning that data in it wraps around like a circle, this means that when reading the buffer, there is no end,
-// instead it just wraps back around to the beginning. This makes it so that data can be continuously written into,
-// and erased from the buffer without ever needed to shift elements around (as long as they're also done in order).
-// For more information on circular buffers, check out:
-//         https://en.wikipedia.org/wiki/Circular_buffer
-// Note: every reading taken from the Vernier interface takes up exactly 6 bytes of space.
-volatile uint8_t[] dataBuffer = new uint8_t[DATA_BUFFER_SIZE];
-// This is the starting position of valid data in the buffer. Since it's a circular buffer, data doesn't start at
-// offset 0 like a normal buffer. Instead of actually removing a byte once it's been handled, this variable just
-// increments to indicate that the byte at the last position has been handled and hence 'removed'. Once this variable
-// reaches the end of the buffer, it wraps around back to index 0.
-volatile uint32_t dataStartPos = 0;
-// This is the ending position of valid data in the buffer. Whenever a byte is added to the buffer this value
-// increments. Once this variable reaches the end of the buffer, it wraps back around to index 0.
+// Buffer for storing data readings in between transmissions to the client.
+volatile uint8_t[] dataBuffer = new uint8_t[SRAM_SIZE * 0.6];
+// The starting index of the unhandled data in the dataBuffer.
+uint32_t dataStartPos = 0;
+// The ending index of the unhandled data in the dataBuffer.
 volatile uint32_t dataStopPos = 0;
-
-// Bit array that is used to store whether sensors are connected and/or enabled for batch readings.
-// A value of 1 indicates either the sensor is connected, or it's enabled for batch readings, and a value of 0
-// respectively indicates the opposite. This variable is meant to be used with the "X_#_CONNECTED" and "X_#_ENABLED"
-// macros defined above, so that (sensorFlags & X_#_CONNECTED) will tell you if the specified sensor is connected,
-// and likewise for "X_#_ENABLED".
+// Bit array that holds flags for the status of various operations and components of the Arduino.
+uint8_t statusFlags = B00000000;
+// Bit array that holds which sensors connected and whether they're enabled for batch readings.
 volatile uint8_t sensorFlags = B00000000;
-// Bit array that stores various status information in one centralized variable. The variable is used as follows:
-// bit 0:   Stores whether or not a reading is currently being taken. 1 indicates a reading is in progress.
-// bit 1:   TODO
-// bit 2:   TODO
-// bit 3:   TODO
-// bit 4:   TODO
-// bit 5:   TODO
-// bit 6:   TODO
-// bit 7:   TODO
-volatile uint8_t statusFlags = B00000000;
+// Array containing the last ID voltage for every sensor port on the Vernier interface.
+uint8_t[] sensorIDs = new uint8_t[4];
+// Fields for temporarily storing sensor readings before writing them into the data buffer.
+uint32_t datastoreA; uint16_t datastoreB;
 
-// Array that stores the sensors "Identifying Voltage". Every Vernier sensor has a specific internal resistance
-// built into it that can be measured with analog pin A4 (this is explain in greater detail in the "setup" function
-// below). The readings taken from that pin are stored in this array (in MUX address order, so analog1=0, analog2=1,
-// digital1=2, and digital2=3), so that the Arduino can periodically compare the current value against this stored
-// value to automatically detect when a sensor has been removed or connected to it.
-volatile uint8_t[] sensorIDs = new uint8_t[4];
+//===== Functions =====//
+// This function gets called once when the program first starts up. 
+void setup()
+{
+    // Start the serial connection at the specified baud rate
+    Serial.begin(BAUD_RATE);
 
-// Temporary variables used to store sensor reading values during batch readings. These should be treated as a single
-// 48 bit variable in the order (tempDatastoreA, tempDatastoreB) and are encoded as follows:
-// bits 0~9:   Store the value read from pin A0 (0~5v analog sensor 1).
-// bits 10~19: Store the value read from pin A1 (-10~10v analog sensor 1).
-// bits 20~29: Store the value read from pin A2 (0~5v analog sensor 2).
-// bits 30~39: Store the value read from pin A3 (-10~10v analog sensor 2).
-// bits 40~43: Store the values of digital pins 2,3,4,5 in order.
-// bits 44~47: Store the values of digital pins 6,7,8,9 in order.
-uint32_t tempDatastoreA; uint16_t tempDatastoreB;
+    #ifdef DEBUG
+        Serial.write(DEBUG_PREFIX);
+        Serial.println(F("Established connection."));
+        Serial.write(DEBUG_SUFFIX);
+    #endif
+
+    #ifdef BACKUP
+        #ifdef DEBUG
+            Serial.write(DEBUG_PREFIX);
+            Serial.println(F("Saving to EEPROM."));
+            Serial.write(DEBUG_SUFFIX);
+        #endif
+
+        // Save a backup of all the Arduino's critical registers before we start setting them.
+        //TODO save the registers to EEPROM!
+
+        #ifdef DEBUG
+            Serial.write(DEBUG_PREFIX);
+            Serial.println(F("Backup complete."));
+            Serial.write(DEBUG_SUFFIX);
+        #endif
+    #endif
+
+    // Set analog pins A0,A1,A2,A3,A4,A5 to input mode without changing bit 6 or 7.
+    DDRC &= B11000000;
+    // Set pins 2,3,4,5,6,7,8,9,10,11,12,13 to input mode, without changing pins 0,1,14,15.
+    DDRD &= B00000011;
+    DDRB &= B11000000;
+    // Set pin 13 (onboard LED) to output mode, without changing any other bits.
+    DDRB |= B00100000
+
+    // Enable the pullup resistor on pin 12 (push button) to invert it's states.
+    PORTB |= B00010000;
+
+    // Disable digital readings on analog pins A0,A1,A2,A3,A4,A5, without changing bits 6 and 7.
+    DIDR0 |= (1 << ADC0D) | (1 << ADC1D) | (1 << ADC2D) | (1 << ADC3D) | (1 << ADC4D) | (1 << ADC5D);
+    // Disable analog comparisons on digital pins
+    DIDR1 |= (1 << AIN0D) | (1 << AIN1D);
+
+    // TODO ensure that all the timer registries are set how we want still!
+
+    #ifdef DEBUG
+        Serial.write(DEBUG_PREFIX);
+        Serial.println(F("Configured pins."));
+        Serial.print(F("DDRB:"));
+        Serial.println(DDRB, BIN);
+        Serial.print(F("DDRC:"));
+        Serial.println(DDRC, BIN);
+        Serial.print(F("DDRD:"));
+        Serial.println(DDRD, BIN);
+        Serial.print(F("PORTB:"));
+        Serial.println(PORTB, BIN);
+        Serial.print(F("PORTC:"));
+        Serial.println(PORTC, BIN);
+        Serial.print(F("PORTD:"));
+        Serial.println(PORTD, BIN);
+        Serial.print(F("DIDR0:"));
+        Serial.println(DIDR0, BIN);
+        Serial.print(F("DIDR1:"));
+        Serial.println(DIDR1, BIN);
+        Serial.write(DEBUG_SUFFIX);
+    #endif
+}
+
+void loop()
+{
+
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+
+}
+
+ISR(ANALOG_COMP_vect)
+{
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //===== Program Functions =====//
@@ -454,40 +447,23 @@ ISR(ANALOG_COMP_vect)
 
 
 
+//===== Macros =====//
+// This program makes use of macros; these are programming instructions that are run when the program is first
+// compiled, before the actual program ever starts running. This means they take up no space and don't use any
+// processing power, since by the time the program starts running, all the macros will of already been run and
+// handled.
+//
+// Additionally macros can be 'defined' (given a value) outside the program. So the main GALP program can use
+// whatever macro values it thinks are most appropiate when uploading the program to the Arduino before starting it.
+// The following are all the macros that can be set outside this program:
+// BACKUP:      Specifies whether the program should store a backup of it's current settings before it starts running
+//              hence providing a fallback in the case this program acidentally bricks the Arduino. It stores a full
+//              backup of all the Arduino's registers in EEPROM memory, which persists even after power is
+//              disconnected. Setting pin 12 high will cause the program to immediately halt it's execution and do a
+//              full restore from the backup. Pin 12 can be set high by pushing the button on the Vernier interface.
+//              By default this isn't enabled, but it's a good idea to use while GALP is still in developement.
 
 
 
 
-
-
-
-
-
-
-/** Function that safely increments the data start position, preserving the circular buffer behavior by wrapping
-  * the position back to 0 if it reaches the end of the buffer. **/
-inline void incrementDataBufferStartPos()
-{
-    // If the data start position is at the end of the buffer, wrap it back to the start (0), otherwise just increment
-    // it like normal.
-    if(dataStartPos == (DATA_BUFFER_SIZE - 1))
-    {
-        dataStartPos = 0;
-    } else {
-        dataStartPos++;
-    }
-}
-
-/** Function that safely increments the data stop position, preserving the circular buffer behavior by wrapping
-  * the position back to 0 if it reaches the end of the buffer. **/
-inline void incrementDataBufferStopPos()
-{
-    // If the data stop position is at the end of the buffer, wrap it back to the start (0), otherwise just increment
-    // it like normal.
-    if(dataStopPos == (DATA_BUFFER_SIZE - 1))
-    {
-        dataStopPos = 0;
-    } else {
-        dataStopPos++;
-    }
-}
+//TODO do we need a different comparator for the +-10v lines?
