@@ -11,21 +11,28 @@
     #define SRAM_SIZE 2048
 #endif
 
-//=== Bitmasks that can be used with `sensorFlags` to determine whether a sensor is connected and/or batch enabled.
+//=== Bitmasks that can be used with `statusFlags` to determine various states and settings.
+// The type of reading that was most recently taken (or is in progress).
+#define READING_TYPE B00000011
+// Whether there's a currently a sensor reading in progress.
+#define READING_IN_PROGRESS B00000100
+// The address of the last analog pin that a reading was taken from.
+#define LAST_ANALOG_ADDRESS B00111000
+// Whether the pins used by digital sensor 1 should be read from during batch readings.
+#define DIGITAL_1_ENABLED B01000000
+// Whether the pins used by digital sensor 2 should be read from during batch readings.
+#define DIGITAL_2_ENABLED B10000000
+// Sets that a single batch reading has been finished and the result needs to be handled.
+#define RESULT_READY B00000011
+
+//=== Bitmasks that can be used with `sensorFlags` to determine which ports have sensors connected to them, and which
+//=== analog pins are used by connected analog sensors.
+// Whether there's currently a sensor connected to the specified port.
 #define ANALOG_1_CONNECTED B00000001
 #define ANALOG_2_CONNECTED B00000010
 #define DIGITAL_1_CONNECTED B00000100
 #define DIGITAL_2_CONNECTED B00001000
-#define ANALOG_1_ENABLED B00010000
-#define ANALOG_2_ENABLED B00100000
-#define DIGITAL_1_ENABLED B01000000
-#define DIGITAL_2_ENABLED B10000000
-
-//=== Bitmasks that can be used with `statusFlags` to get the current call statuses of the Arduino.
-#define READING_IN_PROGRESS B00000001
-// Reading type of 0 indicates a non-batch reading, otherwise it's a batch reading.
-#define READING_TYPE B00000010
-// Bitmasks that can be used to tell which analog pins are used by any sensors currently connected to the interface.
+// Whether the specified analog pin should be read from during batch readings.
 #define A0_ENABLED B00010000
 #define A1_ENABLED B00100000
 #define A2_ENABLED B01000000
@@ -33,20 +40,23 @@
 
 //=== Bitmasks for reading and writing from the ADMUX register.
 // Prefix for setting the ADC reference voltage to the onboard 5v power supply.
-#define ADMUX_PREFIX B01000000
+#define ADMUX_PREFIX (1<<REFS0)
 // Bitmask that can be used to read the current address stored in the ADMUX register.
 #define ADMUX_ADDRESS B00001111
 // The ADMUX address for the analog pins.
-#define A0_ADDRESS B00000000
-#define A1_ADDRESS B00000001
-#define A2_ADDRESS B00000010
-#define A3_ADDRESS B00000011
-#define A4_ADDRESS B00000100
-#define A5_ADDRESS B00000101
+#define A0_ADDRESS 0
+#define A1_ADDRESS 1
+#define A2_ADDRESS 2
+#define A3_ADDRESS 3
+#define A4_ADDRESS 4
+#define A5_ADDRESS 5
+
+// Bitmask for starting the ADC.
+#define ADCSRA_START (1<<ADEN)|(1<<ADSC)|(1<<ADIE)|(1<<ADPS2)
 
 //===== Global Variables =====//
 // Buffer for storing data readings in between transmissions to the client.
-volatile uint8_t[] dataBuffer = new uint8_t[SRAM_SIZE * 0.6];
+volatile uint8_t dataBuffer[(int)(SRAM_SIZE * 0.6)];
 // The starting index of the unhandled data in the dataBuffer.
 uint32_t dataStartPos = 0;
 // The ending index of the unhandled data in the dataBuffer.
@@ -56,7 +66,7 @@ uint8_t statusFlags = B00000000;
 // Bit array that holds which sensors connected and whether they're enabled for batch readings.
 volatile uint8_t sensorFlags = B00000000;
 // Array containing the last ID voltage for every sensor port on the Vernier interface.
-uint8_t[] sensorIDs = new uint8_t[4];
+uint8_t sensorIDs[4];
 // Fields for temporarily storing sensor readings before writing them into the data buffer.
 uint32_t datastoreA; uint16_t datastoreB;
 
@@ -69,14 +79,16 @@ void setup()
 
     #ifdef DEBUG
         Serial.write(DEBUG_PREFIX);
-        Serial.println(F("Established connection."));
+        Serial.print(F("Established connection:"));
+        Serial.println(millis());
         Serial.write(DEBUG_SUFFIX);
     #endif
 
     #ifdef BACKUP
         #ifdef DEBUG
             Serial.write(DEBUG_PREFIX);
-            Serial.println(F("Saving to EEPROM."));
+            Serial.print(F("Saving to EEPROM:"));
+            Serial.println(millis());
             Serial.write(DEBUG_SUFFIX);
         #endif
 
@@ -85,7 +97,8 @@ void setup()
 
         #ifdef DEBUG
             Serial.write(DEBUG_PREFIX);
-            Serial.println(F("Backup complete."));
+            Serial.print(F("Backup complete:"));
+            Serial.println(millis());
             Serial.write(DEBUG_SUFFIX);
         #endif
     #endif
@@ -96,21 +109,28 @@ void setup()
     DDRD &= B00000011;
     DDRB &= B11000000;
     // Set pin 13 (onboard LED) to output mode, without changing any other bits.
-    DDRB |= B00100000
+    DDRB |= B00100000;
 
     // Enable the pullup resistor on pin 12 (push button) to invert it's states.
     PORTB |= B00010000;
 
     // Disable digital readings on analog pins A0,A1,A2,A3,A4,A5, without changing bits 6 and 7.
     DIDR0 |= (1 << ADC0D) | (1 << ADC1D) | (1 << ADC2D) | (1 << ADC3D) | (1 << ADC4D) | (1 << ADC5D);
-    // Disable analog comparisons on digital pins
+    // Disable analog comparisons on digital pins.
     DIDR1 |= (1 << AIN0D) | (1 << AIN1D);
+    // Ensure the Analog to Digital Converter is enabled.
+    ADCSRA |= (1 << ADEN);
+    // Disable multiplexing with the analog comparator and auto-triggering of the Analog to Digital conveter.
+    ADCSRB = (0 << ACME) | (0 << ADTS0) | (0 << ADTS1) | (0 << ADTS2);
+    // Disable the analog comparator.
+    ACSR |= (1 << ACD);
 
     // TODO ensure that all the timer registries are set how we want still!
 
     #ifdef DEBUG
         Serial.write(DEBUG_PREFIX);
-        Serial.println(F("Configured pins."));
+        Serial.print(F("Configured pins:"));
+        Serial.println(millis());
         Serial.print(F("DDRB:"));
         Serial.println(DDRB, BIN);
         Serial.print(F("DDRC:"));
@@ -136,19 +156,174 @@ void loop()
 
 }
 
+// Convenience method for starting a new analog reading on an analog pin.
+inline void startAnalogReading(const uint8_t& address)
+{
+    // Clear the old 'last analog address' and set it to the new address
+    statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (address << 3);
+    // Set the address in the analog to digital converter and start the converter.
+    ADMUX = ADMUX_PREFIX | address;
+    ADCSRA = ADCSRA_START;
+}
+
+// Interrupt service routine that gets called when a reading should be taken during a batch reading.
 ISR(TIMER1_COMPA_vect)
 {
+    #ifdef DEBUG
+        Serial.write(DEBUG_PREFIX);
+        Serial.print(F("Timer interrupt:"));
+        Serial.println(millis());
+        Serial.write(DEBUG_SUFFIX);
+    #endif
 
+    // Clear old readings out of the datastore.
+    datastoreA = 0; datastoreB = 0;
+    
+    // Read from the digital ports if they're enabled during batch readings.
+    if(DIGITAL_1_ENABLED & statusFlags)
+    {
+        // Copies the states of digital pins 2,3,4,5 into bits 40~43 of the datastore.
+        datastoreA |= ((uint32_t)(PORTB & B00111100) << 22);
+    }
+    if(DIGITAL_2_ENABLED & statusFlags)
+    {
+        // Copies the states of digital pins 6,7,8,9 into bits 44~47 of the datastore.
+        datastoreA |= ((uint32_t)(PORTB & B11000000) << 22) | ((uint32_t)(PORTD & B00000011) << 30);
+    }
+
+    // Start a reading from the lowest enabled analog pin, or if no analog readings are enabled,
+    // write datastore into the data buffer.
+    if(A0_ENABLED & sensorFlags)
+    {
+        // Clear the old 'last analog address' and set it to address 0 (for pin A0).
+        statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (A0_ADDRESS << 3);
+        // Set the address in the analog to digital converter to A0 and start the converter.
+        ADMUX = ADMUX_PREFIX | A0_ADDRESS;
+        ADCSRA = ADCSRA_START;
+    } else
+    if(A1_ENABLED & sensorFlags)
+    {
+        // Clear the old 'last analog address' and set it to address 1 (for pin A1).
+        statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (A1_ADDRESS << 3);
+        // Set the address in the analog to digital converter to A1 and start the converter.
+        ADMUX = ADMUX_PREFIX | A1_ADDRESS;
+        ADCSRA = ADCSRA_START;
+    } else
+    if(A2_ENABLED & sensorFlags)
+    {
+        // Clear the old 'last analog address'  and set it to address 2 (for pin A2).
+        statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (A2_ADDRESS << 3);
+        // Set the address in the analog to digital converter to A2 and start the converter.
+        ADMUX = ADMUX_PREFIX | A2_ADDRESS;
+        ADCSRA = ADCSRA_START;
+    } else
+    if(A3_ENABLED & sensorFlags)
+    {
+        // Clear the old 'last analog address' and set it to address 3 (for pin A3).
+        statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (A3_ADDRESS << 3);
+        // Set the address in the analog to digital converter to A3 and start the converter.
+        ADMUX = ADMUX_PREFIX | A3_ADDRESS;
+        ADCSRA = ADCSRA_START;
+    } else {
+        // Set that this reading is ready to be handled by the main loop.
+        statusFlags |= RESULT_READY;
+    }
 }
 
+// Interrupt service routine that gets called whenever an analog reading has been finished.
 ISR(ANALOG_COMP_vect)
 {
-    
+    #ifdef DEBUG
+        Serial.write(DEBUG_PREFIX);
+        Serial.print(F("ADC interrupt:"));
+        Serial.println(millis());
+        Serial.write(DEBUG_SUFFIX);
+    #endif
+
+    static bool readingHandled = false;
+
+    // Switch off the address of the analog pin that the reading was taken from.
+    switch(statusFlags & LAST_ANALOG_ADDRESS)
+    {
+        case 0:
+        {
+#ifdef DEBUG
+            if(readingHandled)// This should be impossible.
+            {
+                Serial.write(DEBUG_PREFIX);
+                Serial.print(F("!READING HANDLED ON A0!:"));
+                Serial.println(millis());
+                Serial.write(DEBUG_SUFFIX);
+            } else{ // The reading was taken from this pin (A0).
+#endif
+
+#ifdef DEBUG
+            }
+#endif
+        }
+        case 1:
+        {
+            
+            if(readingHandled) // The reading was taken from a previous pin.
+            {
+                if((A1_ENABLED & sensorFlags))
+                {
+                    // If this sensor is enabled during batch readings, take it's reading next.
+                }
+            } else { // The reading was taken from this pin (A1).
+
+            }
+        }
+        case 2:
+        {
+            if(readingHandled) // The reading was taken from a previous pin.
+            {
+                if((A2_ENABLED & sensorFlags))
+                {
+                    // If this sensor is enabled during batch readings, take it's reading next.
+                }
+            } else {// If the reading was taken from this pin (A2).
+                
+            }
+        }
+        case 3:
+        {
+            if(readingHandled) // The reading was taken from a previous pin.
+            {
+                if((A3_ENABLED & sensorFlags))
+                {
+                    // If this sensor is enabled during batch readings, take it's reading next.
+                }
+            } else {// If the reading was taken from this pin (A3).
+                
+            }
+        }
+        case 4:// If the reading was taken from pin A4 (resistance measurement).
+        {
+
+        }
+        case 5:// If the reading was taken from pin A5 (identification voltage).
+        {
+
+        }
+
+        #ifdef DEBUG
+            default:// This should be impossible.
+            {
+                Serial.write(DEBUG_PREFIX);
+                Serial.print(F("!ANALOG DEFAULT REACHED!:"));
+                Serial.println(millis());
+                Serial.write(DEBUG_SUFFIX);
+                break;
+            }
+        #endif
+    }
 }
 
 
 
 
+    
 
 
 
@@ -156,6 +331,15 @@ ISR(ANALOG_COMP_vect)
 
 
 
+
+
+
+
+
+// Interrupt service routine that gets called during a batch reading when a reading should be taken.
+// Timer1 ensures this is called at the end of every sample period. It starts taking sensor readings,
+// and if no other analog readings need to be taken singals that the reading has finished. Otherwise
+// it starts the first necessary analog reading.
 
 
 
@@ -258,23 +442,7 @@ void setup()
     // we take are manually triggered. So we set the entire register to 0 to disable this. (This also disables input
     // multiplexing, which is complicated and not worth explaining, but we don't need it.)
     ADCSRB = B00000000;
-
-
-    //===== Starting the serial connection =====//
-    // Start the serial connection at the specified baud rate.
-    Serial.begin(BAUD_RATE);
 }
-
-
-
-// TODO documentation
-void loop()
-{
-
-}
-
-
-
 
 /** Function that writes the temporary datastores into the data buffer for transmission. **/
 inline void writeTempDatastores()
@@ -317,18 +485,8 @@ inline void writeTempDatastores()
         dataStopPos = tempStopPos;
     }
 }
-
-/** Function that takes a reading from every sensor enabled for batch readings, and writes the result into the next
-  * available buffer position. **/
 inline void takeBatchReading()
 {
-    // First we clear any old values left in the datastore variables by setting them both to 0.
-    tempDatastoreA = 0;
-    tempDatastoreB = 0;
-    // Also clear the analog read progress counter.
-    analogReadStatus = 0;
-
-    // If digital sensor 1 is enabled for batch readings.
     if(DIGITAL_1_ENABLED & sensorFlags)
     {
         // Copy the values of digital pins 2,3,4,5 into the temporary datastore (specifically bits 40~43).
@@ -338,8 +496,6 @@ inline void takeBatchReading()
         // the bits by 22 places to where they should be in tempDatastoreA and write them into it.
         tempDatastoreA |= ((uint32_t)(PORTB & B00111100) << 22);
     }
-
-    // If digital sensor 2 is enabled for batch readings.
     if(DIGITAL_2_ENABLED & sensorFlags)
     {
         // Copy the values of digital pins 6,7,8,9 into the temporary datastore (specifically bits 44~47).
@@ -347,8 +503,6 @@ inline void takeBatchReading()
         // PORTD (for bits 8,9). Then we shift them and write them into tempDatastoreA.
         tempDatastoreA |= ((uint32_t)(PORTB & B11000000) << 22) | ((uint32_t)(PORTD & B00000011) << 30);
     }
-
-    // If analog sensor 1 is enabled for batch readings.
     if(ANALOG_1_ENABLED & sensorFlags)
     {
         // ADMUX is the "Analog to Digital Multiplexer", it's used to select a reference voltage, and specify
@@ -364,63 +518,7 @@ inline void takeBatchReading()
         ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE);
 
     }
-    // If analog sensor 1 wasn't enabled for batch readings, but analog sensor 2 was.
-    else if(ANALOG_2_ENABLED & sensorFlags)
-    {
-        // We first set the multiplexer, same as above, but this time select pin A2.
-        ADMUX = ADMUX_PREFIX | A2_ADDRESS;
-        // Just like above, we enable the chip and start a reading with interrupts enabled.
-        ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE);
-    }
-    // If neither analog sensor was enabled for batch readings.
-    else
-    {
-        // Write the temporary datastores into the data buffer, as there's no more data to collect.
-        writeTempDatastores();
-    }
 }
-
-/** TODO **/
-inline void handleAnalogReadFinished()
-{
-    // The address of the analog pin that the reading was taken from.
-    static unit8_t currentPin = ADMUX & ADMUX_ADDRESS_MASK;
-
-    // If the reading was taken from pin A0 (analog sensor 1)
-    if(currentPin == 0)
-    {
-        // Write the values into the tempdatastore.
-
-        // 
-    }
-    // If the reading was taken from pin A1 (analog sensor 1)
-    else if(currentPin == 1)
-    {
-
-    }
-    // If the reading was taken from pin A2 (analog sensor 2)
-    else if(currentPin == 2)
-    {
-
-    }
-    // If the reading was taken from pin A3 (analog sensor 2)
-    else if(currentPin == 3)
-    {
-
-    }
-    // If the reading was taken from pin A4 (resistance measurement)
-    else if(currentPin == 4)
-    {
-
-    }
-    // If the reading was taken from pin A5 (identification voltage)
-    else if(currentPin == 5)
-    {
-
-    }
-}
-
-
 /** This is an "Interrupt Service Routine". It's a function that will be run whenever TIMER1 reaches it's
   * compare-match value (COMP1A). It quickly takes a reading from all the sensors that are being used and
   * stores it in the data buffer.
@@ -432,20 +530,6 @@ ISR(TIMER1_COMPA_vect)
     // Take a batch reading from all the enabled sensors.
     takeBatchReading();
 }
-
-/** This is another interrupt service routine, but this one will get called whenever an analog reading gets
-  * finished. **/
-ISR(ANALOG_COMP_vect)
-{
-    // Handle the analog reading that was finished.
-    handleAnalogReadFinished();
-}
-
-
-
-
-
-
 
 //===== Macros =====//
 // This program makes use of macros; these are programming instructions that are run when the program is first
@@ -467,3 +551,5 @@ ISR(ANALOG_COMP_vect)
 
 
 //TODO do we need a different comparator for the +-10v lines?
+//TODO see if using F macro on numeric constants saves memory.
+// TODO create DEBUG_PREFIX and DEBUG_SUFFIX

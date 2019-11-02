@@ -1,13 +1,5 @@
-So, how should we try and write the Arduino program... I think we should have a separate part for the documentation, and just write the program raw...
-Then have a comment at the top saying that the documented version is stored in the docs folder because it was too complex to document within the program.
 
-And we should have it in 2 sections, the first section is just an actual full tutorial explaining stuff all on it's own.
-The second section can be the actual code, but with each line documented in earnest.
-Actually, let's just write the documentation here in this file, like why not?
-
-=========================================================================================================================
-
-# Arduino
+# Arduino Documentation
 Galp includes inbuilt support for interfacing with Vernier sensors via an Arduino over a serial connection.
 Galp can upload sketches to Arduinos during run-time, allowing it to readily use any Arduinos for data acquisition.
 It includes 2 sketches which both implement the custom protocol galp uses to transmit and receive data and commands,
@@ -80,28 +72,29 @@ The following list contains every macro used by the program which can be overrid
 - `BACKUP`:    Specifies whether the program should back itself up before it starts operating. If this is enabled all of the Arduino's core settings and registers are copied into EEPROM storage and can be reloaded later by setting digital pin 12 (by pressing the button on the Vernier interface). See 'backupSave' and 'backupLoad' in [Functions](#functions).
 
 The following list contains every macro used internally by the program which can't be set externally:
-- `ANALOG_1_CONNECTED` =  (`B00000001`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog1 sensor is connected (0 means non-connected, any other value indicates its connected).
-- `ANALOG_2_CONNECTED` =  (`B00000010`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog2 sensor is connected (0 means non-connected, any other value indicates its connected).
-- `DIGITAL_1_CONNECTED` = (`B00000100`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital1 sensor is connected (0 means non-connected, any other value indicates its connected).
-- `DIGITAL_2_CONNECTED` = (`B00001000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital2 sensor is connected (0 means non-connected, any other value indicates its connected).
-- `ANALOG_1_ENABLED` =    (`B00010000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog1 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
-- `DIGITAL_2_ENABLED` =   (`B00100000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog2 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
-- `ANALOG_1_ENABLED` =    (`B01000000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital1 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
-- `DIGITAL_2_ENABLED` =   (`B10000000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital2 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
-- `READING_IN_PROGRESS` = (`B00000001`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies whether there's currently an analog reading in progress (0 means there's no reading, any other value indicates a reading is in progress).
-- `READING_TYPE` =        (`B00000010`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies what type of reading is currently occuring (0 means non-batch reading, any other value indicates a batch reading).
-- `A0_ENABLED` =          (`B00010000`): Bitmask that when ANDed with [`statusFlags`](#statusFlags) specifies whether analog pin A0 is used by the sensor currently connected to it. (0 means the sensor doesn't use it, any other value indicates it does).
-- `A1_ENABLED` =          (`B00100000`): Bitmask that when ANDed with [`statusFlags`](#statusFlags) specifies whether analog pin A1 is used by the sensor currently connected to it. (0 means the sensor doesn't use it, any other value indicates it does).
-- `A2_ENABLED` =          (`B01000000`): Bitmask that when ANDed with [`statusFlags`](#statusFlags) specifies whether analog pin A2 is used by the sensor currently connected to it. (0 means the sensor doesn't use it, any other value indicates it does).
-- `A3_ENABLED` =          (`B10000000`): Bitmask that when ANDed with [`statusFlags`](#statusFlags) specifies whether analog pin A3 is used by the sensor currently connected to it. (0 means the sensor doesn't use it, any other value indicates it does).
-- `ADMUX_PREFIX` =        (`B01000000`): Bitwise value that should be used when setting the [`ADMUX`](#admux) register for taking analog readings. In general, `ADMUX` should be set as follows: `ADMUX = ADMUX_PREFIX | A#_ADDRESS`. This prefix sets the ADC converter chip to use the boards 5v power supply as it's reference voltage.
+- `ANALOG_1_CONNECTED` =  (`B00000001`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog1 sensor is connected (0 means not connected, any other value indicates its connected).
+- `ANALOG_2_CONNECTED` =  (`B00000010`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog2 sensor is connected (0 means not connected, any other value indicates its connected).
+- `DIGITAL_1_CONNECTED` = (`B00000100`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital1 sensor is connected (0 means not connected, any other value indicates its connected).
+- `DIGITAL_2_CONNECTED` = (`B00001000`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the digital2 sensor is connected (0 means not connected, any other value indicates its connected).
+- `A0_ENABLED` =          (`B00010000`): Bitmask that when ANDed with [`sensorFlags`](#sensorFlags) specifies whether the A0 pin is used by any of the connected analog sensors (0 means not used, any other value indicates it is used).
+- `A1_ENABLED` =          (`B00100000`): Bitmask that when ANDed with [`sensorFlags`](#sensorFlags) specifies whether the A1 pin is used by any of the connected analog sensors (0 means not used, any other value indicates it is used).
+- `A2_ENABLED` =          (`B01000000`): Bitmask that when ANDed with [`sensorFlags`](#sensorFlags) specifies whether the A2 pin is used by any of the connected analog sensors (0 means not used, any other value indicates it is used).
+- `A3_ENABLED` =          (`B10000000`): Bitmask that when ANDed with [`sensorFlags`](#sensorFlags) specifies whether the A3 pin is used by any of the connected analog sensors (0 means not used, any other value indicates it is used).
+- `READING_TYPE` =        (`B00000011`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies what type the most recent type of reading was (0 indicates a sensor ID scan, 1 indicates a non-batch sensor reasing, 2 indicates a batch reading, 3 indicates a batch reading and that a reading has just finished (and hasn't been handled)).
+- `READING_IN_PROGRESS` = (`B00000100`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies whether there's currently an analog reading in progress (0 means there's no reading, any other value indicates a reading is in progress).
+- `LAST_ANALOG_ADDRESS` = (`B00111000`): Bitmask that when ANDed with [`statusFlags`](#statusflags) and shifted 3 bits to the right specifies the most recent analog pin that a reading was taken from (0=A0, 1=A1, 2=A2, 3=A3, 4=A4, 5=A5, 6 and 7 are impossible values).
+- `DIGITAL_1_ENABLED` =   (`B01000000`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies whether the digital1 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
+- `DIGITAL_2_ENABLED` =   (`B10000000`): Bitmask that when ANDed with [`statusFlags`](#statusflags) specifies whether the digital2 sensor is enabled for batch readings (0 means not enabled, any other value indicates its enabled).
+- `RESULT_READY` =        (`BB00000011`): Bitvalue that can be ORed with [`statusFlags`](#statusFlags) to specify that a single batch reading result is ready to be transferred into the data buffer and transmittied to the client.
+- `ADMUX_PREFIX` =        (`(1<<REFS0)`): Bitwise value that should be used when setting the [`ADMUX`](#admux) register for taking analog readings. In general, `ADMUX` should be set as follows: `ADMUX = ADMUX_PREFIX | A#_ADDRESS`. This prefix sets the ADC converter chip to use the boards internal 5v power rail as it's reference voltage.
 - `ADMUX_ADDRES` =   (`B00001111`): Bitmask that when ANDed with the [`ADMUX`](#admux) register evaluates to the address of the analog sensor a reading was most recently taken from. These addresses are equivalent to the `A#_ADDRESS` macros listed below.
-- `A0_ADDRESS` =          (`B00000000`): The multiplexer address of the A0 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A0 as the target to take the next analog reading from.
-- `A1_ADDRESS` =          (`B00000001`): The multiplexer address of the A1 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A1 as the target to take the next analog reading from.
-- `A2_ADDRESS` =          (`B00000010`): The multiplexer address of the A2 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A2 as the target to take the next analog reading from.
-- `A3_ADDRESS` =          (`B00000011`): The multiplexer address of the A3 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A3 as the target to take the next analog reading from.
-- `A4_ADDRESS` =          (`B00000100`): The multiplexer address of the A4 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A4 as the target to take the next analog reading from.
-- `A5_ADDRESS` =          (`B00000101`): The multiplexer address of the A5 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A5 as the target to take the next analog reading from.
+- `A0_ADDRESS` =          (`0`): The multiplexer address of the A0 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A0 as the target to take the next analog reading from.
+- `A1_ADDRESS` =          (`1`): The multiplexer address of the A1 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A1 as the target to take the next analog reading from.
+- `A2_ADDRESS` =          (`2`): The multiplexer address of the A2 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A2 as the target to take the next analog reading from.
+- `A3_ADDRESS` =          (`3`): The multiplexer address of the A3 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A3 as the target to take the next analog reading from.
+- `A4_ADDRESS` =          (`4`): The multiplexer address of the A4 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A4 as the target to take the next analog reading from.
+- `A5_ADDRESS` =          (`5`): The multiplexer address of the A5 analog pin. ORing this value with an empty [`ADMUX`](#admux) register will set pin A5 as the target to take the next analog reading from.
+- `ADC_START` =           (`(1<<ADEN)|(1<<ADSC)|(1<<ADIE)|(1<<ADPS2)`): Bitwise value that can be written into the ADCSRA register to start an analog to digital conversion. It keeps the ADC enabled, sets that it should start a conversion, enabled interrupting after the conversion finishes, and sets the ADC prescalar to 32.
 
 ## Global Variables
 -------------------
@@ -145,27 +138,24 @@ Every sensor reading takes up exactly 6 bytes, or 48 bits, and all readings are 
 
 ### statusFlags:
 Bit array that holes flags for various settings, there's 8 bits in total for 8 settings. They are as follows:
-- bit 0: Whether there's currently a reading in progress (1 is true, 0 otherwise).
-- bit 1: Whether the current reading is a batch reading (1 if batch reading, 0 otherwise).
-- bit 2: UNUSED
-- bit 3: UNUSED
-- bit 4: Whether pin A0 is used by the sensor currently connected to it (1 if used, 0 otherwise).
-- bit 5: Whether pin A1 is used by the sensor currently connected to it (1 if used, 0 otherwise).
-- bit 6: Whether pin A2 is used by the sensor currently connected to it (1 if used, 0 otherwise).
-- bit 7: Whether pin A3 is used by the sensor currently connected to it (1 if used, 0 otherwise).
+- bits 0~1: The type of reading most recently taken (0 indicates a sensor ID scan, 1 indicates a non-batch sensor reasing, 2 indicates a batch reading, indicates a batch reading and that a reading has just finished (and hasn't been handled)).
+- bit 2:    Whether there's currently a reading in progress (1 if there is, 0 otherwise).
+- bits 3~5: The address of the analog pin a reading was most recently taken from (0 = A0, ..., 5=A5).
+- bit 6:    Whether digital port 1 should be read from during batch readings (1 if it should be, 0 otherwise).
+- bit 7:    Whether digital port 2 should be read from during batch readings (1 if it should be, 0 otherwise).
 
 ### sensorFlags:
 Bit array that holds the states for each sensor port. There's 8 bits in total, the upper 4 keep track of which ports have sensors connected to them, and the lower 4 keep track of which sensors should be enabled during a batch reading. The `X_#_CONNECTED` and `X_#_ENABLED` macros are supplied 
 
 The exact breakdown is as follows:
-- bit0: 1 if there's a sensor connected to analog port 1, 0 otherwise.
-- bit1: 1 if there's a sensor connected to analog port 2, 0 otherwise.
-- bit2: 1 if there's a sensor connected to digital port 1, 0 otherwise.
-- bit3: 1 if there's a sensor connected to digital port 2, 0 otherwise.
-- bit4: 1 if analog port 1 should be enabled during batch readings, 0 otherwise.
-- bit5: 1 if analog port 2 should be enabled during batch readings, 0 otherwise.
-- bit6: 1 if digital port 1 should be enabled during batch readings, 0 otherwise.
-- bit7: 1 if digital port 2 should be enabled during batch readings, 0 otherwise.
+- bit 0: 1 if there's a sensor connected to analog port 1, 0 otherwise.
+- bit 1: 1 if there's a sensor connected to analog port 2, 0 otherwise.
+- bit 2: 1 if there's a sensor connected to digital port 1, 0 otherwise.
+- bit 3: 1 if there's a sensor connected to digital port 2, 0 otherwise.
+- bit 4: 1 if pin A0 is used by any of the connected analog sensors, 0 otherwise.
+- bit 5: 1 if pin A1 is used by any of the connected analog sensors, 0 otherwise.
+- bit 6: 1 if pin A2 is used by any of the connected analog sensors, 0 otherwise.
+- bit 7: 1 if pin A3 is used by any of the connected analog sensors, 0 otherwise.
 
 ### sensorIDs:
 This array stores the last recorded ID voltage of every port on the Vernier interface in MUX address order (analog1, analog2, digital1, digital2).
@@ -189,6 +179,17 @@ After every reading has been taken, and there's nothing left to write into the d
 This way we only update the data buffer a single time once all the data has been read, making it far simpler and safer to read and write the data buffer without any inherent threading checks.
 
 The exact bit-structure of these variables is the same as the 6 byte encoding disccussed in the [`dataBuffer`](#databuffer) section.
+
+## Local Variables
+------------------
+Local variables are those that can only be accessed by a certain part of the program. They are either allocated `static` or not. Static means that the variable is shared through the entire program but only accessible within the scope that it was declared, whereas non-static variables are remade every time the function is called and deleted when the function is over. All local variables we use are `static` to save time that would of been wasted deleting and recreating variables every function call.
+
+The `const` keyword means that it can't be modified after it's first declared.
+
+For information on data-types, read the section on [Global Variables](#global-variables).
+
+The following is a list of every local variable used in the program and their type:
+- [`address (uint8_t)`](#address): Variable used in the analog-to-digital interrupt service routine to temporarily store what pin address the reading was taken from. It's calculated as `statusFlags&LAST_ANALOG_ADDRESS`.
 
 ## Functions
 ------------
