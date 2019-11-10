@@ -105,31 +105,37 @@ const uint8_t ERROR_DEFAULT_READING_TYPE      = B00000101; //5
 
 #ifdef DEBUG_MODE
 // Debug codes. These are sent as payloads alongside `DEBUG_LOG` commands.
-const uint8_t DEBUG_SETUP_START          = B00000001; //1
-const uint8_t DEBUG_SETUP_FINISH         = B00000010; //2
-const uint8_t DEBUG_VALUE_DDRB           = B00000011; //3
-const uint8_t DEBUG_VALUE_DDRC           = B00000100; //4
-const uint8_t DEBUG_VALUE_DDRD           = B00000101; //5
-const uint8_t DEBUG_VALUE_PORTB          = B00000110; //6
-const uint8_t DEBUG_VALUE_PORTC          = B00000111; //7
-const uint8_t DEBUG_VALUE_PORTD          = B00001000; //8
-const uint8_t DEBUG_VALUE_DIDR0          = B00001001; //9
-const uint8_t DEBUG_VALUE_DIDR1          = B00001010; //10
-const uint8_t DEBUG_VALUE_ADCSRA         = B00001011; //11
-const uint8_t DEBUG_VALUE_ADCSRB         = B00001100; //12
-const uint8_t DEBUG_VALUE_ACSR           = B00001101; //13
-const uint8_t DEBUG_MACRO_DUMP           = B00001110; //14
-const uint8_t DEBUG_VALUE_BAUD_RATE      = B00001111; //15
-const uint8_t DEBUG_VALUE_SERIAL_SIZE    = B00010000; //16
-const uint8_t DEBUG_VALUE_AVERAGE_COUNT  = B00010001; //17
-const uint8_t DEBUG_VALUE_DEBUG_MODE     = B00010010; //18
-const uint8_t DEBUG_VALUE_SAFE_MODE      = B00010011; //19
-const uint8_t DEBUG_CONNECTION_READY     = B00010100; //20
-const uint8_t DEBUG_ANALOG_START_START   = B00010101; //21
-const uint8_t DEBUG_ANALOG_START_FINISH  = B00010110; //22
-const uint8_t DEBUG_VALUE_ANALOG_ADDRESS = B00010111; //23
-const uint8_t DEBUG_VALUE_STATUSFLAGS    = B00011000; //24
-const uint8_t DEBUG_VALUE_ADMUX          = B00011001; //25
+const uint8_t DEBUG_SETUP_START           = B00000001; //1
+const uint8_t DEBUG_SETUP_FINISH          = B00000010; //2
+const uint8_t DEBUG_VALUE_DDRB            = B00000011; //3
+const uint8_t DEBUG_VALUE_DDRC            = B00000100; //4
+const uint8_t DEBUG_VALUE_DDRD            = B00000101; //5
+const uint8_t DEBUG_VALUE_PORTB           = B00000110; //6
+const uint8_t DEBUG_VALUE_PORTC           = B00000111; //7
+const uint8_t DEBUG_VALUE_PORTD           = B00001000; //8
+const uint8_t DEBUG_VALUE_DIDR0           = B00001001; //9
+const uint8_t DEBUG_VALUE_DIDR1           = B00001010; //10
+const uint8_t DEBUG_VALUE_ADCSRA          = B00001011; //11
+const uint8_t DEBUG_VALUE_ADCSRB          = B00001100; //12
+const uint8_t DEBUG_VALUE_ACSR            = B00001101; //13
+const uint8_t DEBUG_MACRO_DUMP            = B00001110; //14
+const uint8_t DEBUG_VALUE_BAUD_RATE       = B00001111; //15
+const uint8_t DEBUG_VALUE_SERIAL_SIZE     = B00010000; //16
+const uint8_t DEBUG_VALUE_AVERAGE_COUNT   = B00010001; //17
+const uint8_t DEBUG_VALUE_DEBUG_MODE      = B00010010; //18
+const uint8_t DEBUG_VALUE_SAFE_MODE       = B00010011; //19
+const uint8_t DEBUG_CONNECTION_READY      = B00010100; //20
+const uint8_t DEBUG_ANALOG_START_START    = B00010101; //21
+const uint8_t DEBUG_ANALOG_START_FINISH   = B00010110; //22
+const uint8_t DEBUG_VALUE_ANALOG_ADDRESS  = B00010111; //23
+const uint8_t DEBUG_VALUE_STATUSFLAGS     = B00011000; //24
+const uint8_t DEBUG_VALUE_ADMUX           = B00011001; //25
+const uint8_t DEBUG_TIMER_CHECK_NO        = B00011010; //26
+const uint8_t DEBUG_TIMER_CHECK_START     = B00011011; //27
+const uint8_t DEBUG_TIMER_CHECK_FINISH    = B00011100; //28
+const uint8_t DEBUG_VALUE_AVERAGE_COUNTER = B00011101; //29
+const uint8_t DEBUG_VALUE_ENABLEDFLAGS    = B00011110; //30
+const uint8_t DEBUG_VALUE_PINMODEFLAGS    = B00011111; //31
 #endif
 
 //===== Global Variables =====//
@@ -165,7 +171,7 @@ volatile uint8_t outputBuffer[SERIAL_BUFFER_SIZE];
 //===== Functions =====//
 
 // Writes an error message into the serial output buffer with the accompanying `COMMAND_REPORT_ERROR` command code.
-void inline reportError(const uint8_t& errorCode)
+inline void reportError(const uint8_t& errorCode)
 {
     switch(SERIAL_BUFFER_SIZE - serialStopPos)
     {
@@ -201,7 +207,7 @@ inline void startAnalogReading(const uint8_t& address)
 {
   #ifdef DEBUG_MODE
   {
-    // Send a copy of all the registry values and variables before starting the next analog reading.
+    // Log a copy of all the registry values and variables before starting the next analog reading.
     const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_ANALOG_START_START, 0, 0, 0, 0,
                            DEBUG_VALUE_ANALOG_ADDRESS, address, DEBUG_VALUE_STATUSFLAGS, statusFlags,
                            DEBUG_VALUE_ADMUX, ADMUX, DEBUG_VALUE_ADCSRA, ADCSRA};
@@ -223,7 +229,7 @@ inline void startAnalogReading(const uint8_t& address)
 
   #ifdef DEBUG_MODE
   {
-    // Send a copy of all the registry values and variables after the next analog reading was started.
+    // Log a copy of all the registry values and variables after the next analog reading was started.
     const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_ANALOG_START_FINISH, 0, 0, 0, 0,
                            DEBUG_VALUE_ANALOG_ADDRESS, address, DEBUG_VALUE_STATUSFLAGS, statusFlags,
                            DEBUG_VALUE_ADMUX, ADMUX, DEBUG_VALUE_ADCSRA, ADCSRA};
@@ -246,6 +252,8 @@ inline bool handleAnalogInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
         return false;
     }
 
+    switch()
+
   #ifdef AVERAGE_COUNT
 //TODO
   #else
@@ -259,13 +267,46 @@ inline bool handleAnalogInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
 
 // Checks if there's been a timer interrupt and handles it if there has been. Returns true if an interrupt was handled.
 // Timer interrupts are only used for batch readings.
-inline bool handleTimerInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+inline bool handleTimerInterrupt()
 {
     // Do nothing if there isn't a timer interrupt to handle.
     if(!(statusFlags & TIMER_INTERRUPT_BITMASK))
     {
+      #ifdef DEBUG_MODE
+      {
+        // Log that there weren't any timer interrupts to handle.
+        const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_TIMER_CHECK_NO, 0, 0, 0, 0};
+        const uint32_t time = micros();
+        values[2] = time         & B11111111;
+        values[3] = (time >> 8)  & B11111111;
+        values[4] = (time >> 16) & B11111111;
+        values[5] = (time >> 24) & B11111111;
+        Serial.write(values, 14);
+      }
+      #endif
         return false;
     }
+
+  #ifdef DEBUG_MODE
+  {
+  #ifdef AVERAGE_COUNT
+    const uint8_t AVERAGE_COUNT_HOLDER = AVERAGE_COUNT;
+  #else
+    const uint8_t AVERAGE_COUNT_HOLDER = 0;
+  #endif
+    // Log a copy of the registers and variables before the timer interrupt is handled.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_TIMER_CHECK_START, 0, 0, 0, 0,
+                           DEBUG_VALUE_AVERAGE_COUNTER, averagingCounter, DEBUG_VALUE_AVERAGE_COUNT, AVERAGE_COUNT_HOLDER,
+                           DEBUG_VALUE_PINMODEFLAGS, pinModeFlags, DEBUG_VALUE_ENABLEDFLAGS, enabledFlags,
+                           DEBUG_VALUE_STATUSFLAGS, statusFlags};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 16);
+  }
+  #endif
 
   #ifdef AVERAGE_COUNT
     // Store the time that the reading was started at.
@@ -337,6 +378,57 @@ inline bool handleTimerInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
 
     // Clear the timer interrupt flag
     statusFlags &= ~TIMER_INTERRUPT_BITMASK;
+
+  #ifdef DEBUG_MODE
+  {
+  #ifdef AVERAGE_COUNT
+    const uint8_t AVERAGE_COUNT_HOLDER = AVERAGE_COUNT;
+  #else
+    const uint8_t AVERAGE_COUNT_HOLDER = 0;
+  #endif
+    // Log a copy of the registers and variables after the timer interrupt has been handled.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_TIMER_CHECK_FINISH, 0, 0, 0, 0,
+                           DEBUG_VALUE_AVERAGE_COUNTER, averagingCounter, DEBUG_VALUE_AVERAGE_COUNT, AVERAGE_COUNT_HOLDER,
+                           DEBUG_VALUE_PINMODEFLAGS, pinModeFlags, DEBUG_VALUE_ENABLEDFLAGS, enabledFlags,
+                           DEBUG_VALUE_STATUSFLAGS, statusFlags};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 16);
+  }
+  #endif
+
+    return true;
+}
+
+// Checks if a reading has been completed and handles it if there has been. Returns true ifa reading was handled.
+inline bool handleReadingCompleted()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+    // Do nothing if there isn't a completed reading to handle.
+    if(!(statusFlags & READING_COMPLETE_BITMASK))
+    {
+        return false;
+    }
+
+  #ifdef AVERAGE_COUNT
+    // If enough readings have been taken to average together, take their average. 
+    if(averagingCounter == (AVERAGE_COUNT - 1))
+    {
+        // Average all the readings. //TODO
+        
+        // Write the results into the serial output buffer.
+    } else {
+        averagingCounter++;
+    }
+  #else
+    // Copy the data out of the temporary datastores and into the serial output buffer.
+    switch()
+  #endif
+
+    // Clear the reading complete flag.
+    statusFlags &= ~READING_COMPLETE_BITMASK;
     return true;
 }
 
@@ -380,7 +472,11 @@ void setup()
     // Send a copy of all the macro values the program started up with.
     const uint32_t BAUD_RATE_HOLDER = BAUD_RATE;
     const uint32_t SERIAL_BUFFER_SIZE_HOLDER = SERIAL_BUFFER_SIZE;
+  #ifdef AVERAGE_COUNT
     const uint8_t AVERAGE_COUNT_HOLDER = AVERAGE_COUNT;
+  #else
+    const uint8_t AVERAGE_COUNT_HOLDER = 0;
+  #endif
   #ifdef SAFE_MODE
     const uint8_t SAFE_MODE_HOLDER = 1;
   #else
@@ -475,22 +571,30 @@ void setup()
 // This gets called in a loop during program execution and handles the program's main logic.
 void loop()
 {
-    if(handleAnalogInterrupt() || handleTimerInterrupt())
-    {
-        return;
-    }
+    handleAnalogInterrupt();
+    handleTimerInterrupt();
+    handleReadingCompletedInterrupt();
+
 
     switch(statusFlags & CURRENT_READING_TYPE)
     {
-        case READING_TYPE_NONE:
-            rescanSensors();
+        case(READING_TYPE_NONE):
+            if(processClientCommands() || flushSerialOutput() || rescanSensors())
+            {
+                return;
+            }
+        break;
 
-        case READING_TYPE_BATCH:
-            processClientCommands();
+        case(READING_TYPE_BATCH):
+            if(processClientCommands() || flushSerialOutput())
+            {
+                return;
+            }
+        break;
 
-        case READING_TYPE_SINGLE:
-        case READING_TYPE_IDENTIFY:
-            flushSerialOutput();
+        case(READING_TYPE_SINGLE):
+        case(READING_TYPE_IDENTIFY):
+            flushSerialOutput()
         break;
 
       #ifdef SAFE_MODE
