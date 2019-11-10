@@ -1,28 +1,27 @@
 
 # Arduino Documentation
 Galp includes inbuilt support for interfacing with Vernier sensors via an Arduino over a serial connection.
-Galp can upload sketches to Arduinos during run-time, allowing it to readily use any Arduinos for data acquisition.
-It includes 2 sketches which both implement the custom protocol galp uses to transmit and receive data and commands,
-both can be found in the src/arduino folder. There is `simple.ino` and `fast.ino`, both of which are fully
+Galp can upload sketches (this is what Arduino programs are called) to Arduinos during run-time, allowing it to use any Arduino, instead of only those pre-loaded with the right sketch.
+It includes 2 sketches which both implement the custom protocol galp uses to transmit and receive data and commands;
+they can be found in the src/arduino folder. There is `simple.ino` and `fast.ino`, both of which are fully
 self-contained stand-alone sketchs.
 
-`simple.ino` uses the normal high-level Arduino API giving it reasonable readability and clarity, as well
-as flexibility, there's a good chance that `simple.ino` will run on many different Arduino board models.
+`simple.ino` uses the normal high-level Arduino API (Application Programming Interface) giving it moderate readability and clarity, as well
+as flexibility; there's a good chance that `simple.ino` will run on many different Arduino board models.
 
 `fast.ino` takes the opposite approach and uses direct low-level registery logic to program the Arduino. It
 will almost certainly brick any Arduino other than the 'Arduino Uno Rev3'. While this approach provides near-perfect
 timing accuracy, and supports much faster sampling frequencies, it's almost completely incomprehensible to anyone
-who doesn't have the ATMEGA328D datasheet by their side (this is the processor that the Arduino Uno uses).
+who doesn't have the ATMEGA328D datasheet by their bedside (this is the processor that the Arduino Uno Rev3 uses).
 
 This document exists to explain both the concepts and logic used within `fast.ino` and document the code more
 rigorously than what is present within the actual source file. `simple.ino` is deemed to be sufficiently documented
 with it's own in-source comments and isn't discussed any further than this paragraph.
 
 Even though this documentation attempts to be rigorous, it doesn't even begin to approach the level of detail and
-precision that can be found in the datasheet, so for a truly complete understanding check out the
-    [Datasheet](http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf).
+precision that can be found in the ATMEGA328D datasheet, so for a truly complete and comprehensive understanding check out the [Datasheet](http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf).
 
-Within this document, we first cover the concepts and logic behind the operations and structures used within this program, then afterwards, cover the way they're used within the program, along with other implementation specific details.
+Within this document, we first cover the concepts and logic behind the operations and structures used within this program in quick purpose-written tutorials, then afterwards, cover the way they're used within the program, along with other implementation specific details.
 
 --------------------------------
 
@@ -63,13 +62,13 @@ Within this document, we first cover the concepts and logic behind the operation
 ---------
 We make frequent use of macros in the code for 2 main purposes:
 first we use it to replace complicated operations or variables with more understandable text versions, for instance using `DIGITAL_1_ENABLED` instead of `B01000000`,
-and second, to create variables that can be changed by GALP at upload time. This is much simpler than passing variables over the serial connection (especially variables that should be known at Arduino startup), and also creates faster code, since the compiler will already know the values for these constants at upload time.
+and second, to create variables that can be specified by GALP at upload time. This is much simpler than passing variables over the serial connection (especially variables that should be known at the Arduino's startup), and also creates faster code, since the compiler will already know the values for these constants at upload time.
 
 The following list contains every macro used by the program which can be overridden or defined by GALP at upload time:
-- `BAUD_RATE`: Sets the baud rate of the serial connection the Arduino uses to communicate with the client. Within this context, this is equivalent to bits per second (Defaults to 9600). For a list of supported baud rates check out [this](https://www.arduino.cc/en/Serial.Begin).
-- `SRAM_SIZE`: The storage size of the onboard SRAM in bytes. This value is specific to every board, for the Arduino Uno Rev3 it's 2048 (Defaults to 2048).
-- `DEBUG`:     Specifies that the program should run in debug mode, this causes log messages to be printed over the serial connection (By default this value isn't defined, just defining it (even without a value) will still enable debug mode).
-- `BACKUP`:    Specifies whether the program should back itself up before it starts operating. If this is enabled all of the Arduino's core settings and registers are copied into EEPROM storage and can be reloaded later by setting digital pin 12 (by pressing the button on the Vernier interface). See 'backupSave' and 'backupLoad' in [Functions](#functions).
+- `BAUD_RATE`: Sets the baud rate of the serial connection the Arduino uses to communicate with the client. Within this context, this is equivalent to bits per second (Defaults to 9600). For a list of supported baud rates check out [this webpage](https://www.arduino.cc/en/Serial.Begin).
+- `SRAM_SIZE`: The storage size of the onboard SRAM in bytes. This value is specific to every board, for the Arduino Uno Rev3 it's 2048 bytes(Defaults to 2048).
+- `DEBUG`:     Specifies that the program should run in debug mode, this causes log messages to be printed over the serial connection (By default this value isn't defined, just defining it (even without a value) will enable debug mode).
+- `BACKUP`:    Specifies whether the program should back itself up before it starts operating. If this is enabled all of the Arduino's core settings and registers are copied into EEPROM storage and can be reloaded later with digital pin 12 (by pressing the button on the Vernier interface). See [`backupSave`](#backupsave) and [`backupLoad`](#backupload).
 
 The following list contains every macro used internally by the program which can't be set externally:
 - `ANALOG_1_CONNECTED` =  (`B00000001`): Bitmask that when ANDed with [`sensorFlags`](#sensorflags) specifies whether the analog1 sensor is connected (0 means not connected, any other value indicates its connected).
@@ -117,6 +116,7 @@ The following is a list of every global variable used in the program, their type
 - [`sensorIDs (uint8_t[])`](#sensorids): 4 entries are allocated to the array (one for each sensor port). They all start out as 0.
 - [`datastoreA (uint32_t)`](#datastore): This isn't set by default, since it's only ever used for temporary storage and isn't a _real_ variable.
 - [`datastoreB (uint16_t)`](#datastore): This isn't set by default, since it's only ever used for temporary storage and isn't a _real_ variable.
+- [`timestore (uint32_t)`](#timestore):
 
 ### dataBuffer:
 This buffer stores the data gathered from sensors until it has a chance to be transmitted over the serial connection.
@@ -128,7 +128,7 @@ The idea of doing it this way is that when new data is added to the buffer, `dat
 So by using a circular buffer data can be continuously written and deleted from the buffer at the same time independently (since modifying the stop position doesn't affect the start position and vice verse), without ever needed to move any data around.
 For more information on circular buffers, you can read about them [here](https://en.wikipedia.org/wiki/Circular_buffer)
 
-Every sensor reading takes up exactly 6 bytes, or 48 bits, and all readings are stored in the buffer back to back and in order. The exact structure of each reading is as follows (it's more useful to view the reading as one 48 bit long piece of data, even though it's written as 6 bytes):
+Every sensor reading takes up exactly 10 bytes, the first 4 are a timestamp representing when the reading was started in microseconds since the program started running, and the next 6 contain all the sensor's data. It's more useful to view them as a single 48 bit long piece of data however, since the data doesn't match up cleanly with the boundaries of bytes. The bit-structure of the 6 data bytes are as follows:
 - bits 0~9:   Value read from pin A0 (analog sensor 1 0~5v)
 - bits 10~19: Value read from pin A1 (analog sensor 1 -10~+10v)
 - bits 20~29: Value read from pin A2 (analog sensor 2 0~5v)
@@ -178,18 +178,17 @@ Since analog readings take time, the idea is that the datastore is wiped when a 
 After every reading has been taken, and there's nothing left to write into the datastore, only then are the contents of the data store broken into 6 individual bytes and copied into the data buffer.
 This way we only update the data buffer a single time once all the data has been read, making it far simpler and safer to read and write the data buffer without any inherent threading checks.
 
-The exact bit-structure of these variables is the same as the 6 byte encoding disccussed in the [`dataBuffer`](#databuffer) section.
+The exact bit-structure of these variables is the same as the 6 byte data encoding disccussed in the [`dataBuffer`](#databuffer) section.
 
 ## Local Variables
 ------------------
 Local variables are those that can only be accessed by a certain part of the program. They are either allocated `static` or not. Static means that the variable is shared through the entire program but only accessible within the scope that it was declared, whereas non-static variables are remade every time the function is called and deleted when the function is over. All local variables we use are `static` to save time that would of been wasted deleting and recreating variables every function call.
 
 The `const` keyword means that it can't be modified after it's first declared.
-
 For information on data-types, read the section on [Global Variables](#global-variables).
 
 The following is a list of every local variable used in the program and their type:
-- [`address (uint8_t)`](#address): Variable used in the analog-to-digital interrupt service routine to temporarily store what pin address the reading was taken from. It's calculated as `statusFlags&LAST_ANALOG_ADDRESS`.
+- [`readingHandled (bool)`](#readinghandled): Variable that stores whether or not the analog reading has already been handled in the analog-to-digital interrupt service routine. This is used when iterating through each analog pin to decide which pin a reading should be taken from next; The first enabled pin we check where this value is already true must be next in line to be read.
 
 ## Functions
 ------------
