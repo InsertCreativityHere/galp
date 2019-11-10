@@ -1,14 +1,17 @@
 
+//===== Macros =====//
 
-// Supports up to 16 commands
-// Supports up to 256 sensors
-// supports an averaging_count of up to 256 readings
-// supports a serial_buffer_size of up to 65536 bytes
+// Define a default baud rate of 9600 if one wasn't already defined by GALP.
+#ifndef BAUD_RATE
+    #define BAUD_RATE 9600
+#endif
 
+// Define a serial buffer size of 256 if one wasn't already defined by GALP.
+#ifndef SERIAL_BUFFER_SIZE
+    #define SERIAL_BUFFER_SIZE 256
+#endif
 
-
-
-
+//===== Global Constants =====//
 
 // Prefix bits that are always appended to the front a command byte.
 // Command bytes should always have the form: `(COMMAND_PREFIX | COMMAND_CODE)`
@@ -19,11 +22,11 @@ const uint8_t COMMAND_PREFIX = B01100000;
 const uint8_t RESPONSE_PREFIX = B01010000;
 
 // Command codes. These make up the last 4 bits of every command byte.
-const uint8_t COMMAND_0_RESERVED          = B0000; //0
+const uint8_t COMMAND_REPORT_ERROR        = B0000; //0
 const uint8_t COMMAND_GET_SAMPLE_RATE     = B0001; //1
 const uint8_t COMMAND_SET_SAMPLE_RATE     = B0010; //2
-const uint8_t COMMAND_SET_PORT_STATES     = B0011; //3
-const uint8_t COMMAND_GET_PORT_STATES     = B0100; //4
+const uint8_t COMMAND_GET_PORT_STATES     = B0011; //3
+const uint8_t COMMAND_SET_PORT_STATES     = B0100; //4
 const uint8_t COMMAND_GET_PIN_STATES      = B0101; //5
 const uint8_t COMMAND_SET_PIN_STATES      = B0110; //6
 const uint8_t COMMAND_GET_SENSOR_IDS      = B0111; //7
@@ -31,10 +34,10 @@ const uint8_t COMMAND_SET_SENSOR_IDS      = B1000; //8
 const uint8_t COMMAND_TAKE_READING        = B1001; //9
 const uint8_t COMMAND_START_BATCH_READING = B1010; //10
 const uint8_t COMMAND_STOP_BATCH_READING  = B1011; //11
-const uint8_t COMMAND_12_RESERVED         = B1100; //12
-const uint8_t COMMAND_13_RESERVED         = B1101; //13
-const uint8_t COMMAND_14_RESERVED         = B1110; //14
-const uint8_t COMMAND_15_RESERVED         = B1111; //15
+const uint8_t COMMAND_SCAN_SENSORS        = B1100; //12
+//const uint8_t COMMAND_13_RESERVED         = B1101; //13
+const uint8_t COMMAND_READY               = B1110; //14
+const uint8_t COMMAND_DEBUG_LOG           = B1111; //15
 
 // MUX (multiplexer) addresses for the Vernier interface ports.
 // These are used to set digital pins 10 and 11 when taking readings from pins A4 and A5.
@@ -43,6 +46,8 @@ const uint8_t PORT_ADDRESS_ANALOG_2  = B01; //1
 const uint8_t PORT_ADDRESS_DIGITAL_1 = B10; //2
 const uint8_t PORT_ADDRESS_DIGITAL_2 = B11; //3
 
+// Bitmask for getting the current analog pin address from the `ADMUX` register.
+const uint8_t ADMUX_ADDRESS_BITMASK = B00000111;
 // ADMUX (analog to digital multiplexer) addresses for the Arduino analog pins.
 const uint8_t PIN_ADDRESS_ANALOG_0 = B0000; //0
 const uint8_t PIN_ADDRESS_ANALOG_1 = B0001; //1
@@ -53,14 +58,14 @@ const uint8_t PIN_ADDRESS_ANALOG_5 = B0101; //5
 
 // Bitmasks for getting the pin-mode of digital pins on the Arduino.
 // Can be used with `pinModeFlags` and `..._PIN_STATES`s command's payload (the 1st byte of it).
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_2 = B00000001;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_3 = B00000010;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_4 = B00000100;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_5 = B00001000;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_6 = B00010000;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_7 = B00100000;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_8 = B01000000;
-const uint8_t PIN_ENABLED_BITMASK_DIGITAL_9 = B10000000;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_2 = B00000001;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_3 = B00000010;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_4 = B00000100;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_5 = B00001000;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_6 = B00010000;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_7 = B00100000;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_8 = B01000000;
+const uint8_t PIN_MODE_BITMASK_DIGITAL_9 = B10000000;
 
 // Bitmasks for getting if an analog pin is enabled on the Arduino.
 // Can be used with `enabledFlags` and `..._PIN_STATES`s command's payload (the 2nd byte of it).
@@ -79,236 +84,323 @@ const uint8_t PORT_ENABLED_BITMASK_DIGITAL_2 = B10000000;
 // Bitmasks for getting various information on the current state and status of the Arduino.
 // Can be used with `statusFlags`.
 const uint8_t CURRENT_ANALOG_PIN_ADDRESS = B00000111;
-const uint8_t                            = B00001000;
-const uint8_t CURRENT_READING_TYPE       = B00110000;
-const uint8_t ADC_INTERRUPT_BITMASK      = B01000000;
-const uint8_t TIMER_INTERRUPT_BITMASK    = B10000000;
+const uint8_t CURRENT_READING_TYPE       = B00011000;
+const uint8_t ADC_INTERRUPT_BITMASK      = B00100000;
+const uint8_t TIMER_INTERRUPT_BITMASK    = B01000000;
+const uint8_t READING_COMPLETE_BITMASK   = B10000000;
 
+// Bitvalues representing the current type of reading being taken by the Arduino. These can be used when using the
+// `CURRENT_READING_TYPE` bitmask as follows: `(statusFlags & CURRENT_READING_TYPE) == READING_TYPE_NONE`.
+const uint8_t READING_TYPE_NONE     = B00000000;
+const uint8_t READING_TYPE_SINGLE   = B00010000;
+const uint8_t READING_TYPE_BATCH    = B00100000;
+const uint8_t READING_TYPE_IDENTIFY = B00110000;
 
+// Error codes. These are sent as payloads alongside `REPORT_ERROR` commands.
+const uint8_t ERROR_UNHANDLED_TIMER_ISR       = B00000001; //1
+const uint8_t ERROR_UNHANDLED_ADC_ISR         = B00000010; //2
+const uint8_t ERROR_UNWRAPPED_STOP_POS        = B00000011; //3
+const uint8_t ERROR_READING_ALREADY_COMPLETED = B00000100; //4
+const uint8_t ERROR_DEFAULT_READING_TYPE      = B00000101; //5
 
-
-
-
-
-uint16_t serialStartPos = 0;
-uint16_t serialStopPos = 0;
-uint8_t outputBuffer[SERIAL_BUFFER_SIZE];
-#ifdef AVERAGE_COUNT
-uint8_t averagingBuffer[AVERAGE_COUNT * 10];
-uint8_t averagingCounter = 0;
-#else
-uint32_t timestore; uint32_t datastoreA; uint16_t datastoreB;
+#ifdef DEBUG_MODE
+// Debug codes. These are sent as payloads alongside `DEBUG_LOG` commands.
+const uint8_t DEBUG_SETUP_START          = B00000001; //1
+const uint8_t DEBUG_SETUP_FINISH         = B00000010; //2
+const uint8_t DEBUG_VALUE_DDRB           = B00000011; //3
+const uint8_t DEBUG_VALUE_DDRC           = B00000100; //4
+const uint8_t DEBUG_VALUE_DDRD           = B00000101; //5
+const uint8_t DEBUG_VALUE_PORTB          = B00000110; //6
+const uint8_t DEBUG_VALUE_PORTC          = B00000111; //7
+const uint8_t DEBUG_VALUE_PORTD          = B00001000; //8
+const uint8_t DEBUG_VALUE_DIDR0          = B00001001; //9
+const uint8_t DEBUG_VALUE_DIDR1          = B00001010; //10
+const uint8_t DEBUG_VALUE_ADCSRA         = B00001011; //11
+const uint8_t DEBUG_VALUE_ADCSRB         = B00001100; //12
+const uint8_t DEBUG_VALUE_ACSR           = B00001101; //13
+const uint8_t DEBUG_MACRO_DUMP           = B00001110; //14
+const uint8_t DEBUG_VALUE_BAUD_RATE      = B00001111; //15
+const uint8_t DEBUG_VALUE_SERIAL_SIZE    = B00010000; //16
+const uint8_t DEBUG_VALUE_AVERAGE_COUNT  = B00010001; //17
+const uint8_t DEBUG_VALUE_DEBUG_MODE     = B00010010; //18
+const uint8_t DEBUG_VALUE_SAFE_MODE      = B00010011; //19
+const uint8_t DEBUG_CONNECTION_READY     = B00010100; //20
+const uint8_t DEBUG_ANALOG_START_START   = B00010101; //21
+const uint8_t DEBUG_ANALOG_START_FINISH  = B00010110; //22
+const uint8_t DEBUG_VALUE_ANALOG_ADDRESS = B00010111; //23
+const uint8_t DEBUG_VALUE_STATUSFLAGS    = B00011000; //24
+const uint8_t DEBUG_VALUE_ADMUX          = B00011001; //25
 #endif
-uint32_t samplePeriod = 100000000; // 0.1s
-uint8_t sensorIDs[4] = {0, 0, 0, 0}; // There are no sensors connected.
-uint8_t pinModeFlags = B00000000; // All digital pins are in input mode.
-uint8_t enabledFlags = B00000000; // All analog pins and Vernier interface ports are disabled.
-volatile uint8_t statusFlags =  B00000000;
-
-
-
-
-// so we trigger a sensor reading, and the interrupts only set flags when they're finished that
-// the main method can handle everything for.
-
-// 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-SETUP
-1) Start program
-2) setup serial connection
-3) set registers and settings
-4) compute time of various functions.
-4) notify client
-5) receive client signal
-6) start main loop
-
-MAIN LOOP
-A) During batch reading
-  1) Read client command from queue
-    i) execute the command if its timely enough
-    ii) or send ignored signal to client
-  2) check for timer interrupt signal
-    ) send error signal if last reading hasnt completed.
-    i) record time and digital singals into datastores
-    ii) start adc measure if applicable
-    iii) copy into data buffer otherwise.
-  3) check for adc interrupt signal
-    i) write value to datastore
-    ii) start next adc measure if applicable
-    iii) copy into data buffer otherwise.
-  4) if enough time trasmit some of data buffer.
-  5) if enough time scan through sensors for changes.
-    i) write into data buffer any found changes.
-B) Not during batch reading
-  1) Read client command from queue
-    i) execute the command if reasonable
-    ii) or send the ignored signal to client
-  2) transmit data from buffer if any is available
-  3) scan through sensor changes
-    i) write into data buffer any found changes.
-
-CLIENT COMMANDS
-1) set sample frequency
-2) get sample frequency
-3) enable/disable a sensor port
-4) start a batch reading
-5) stop a batch reading
-
-
-1) manually override a specific sensor to a port.
-2) manually enable/disable analog pins
-3) manually enable/disable digital pin io modes.
-
-3) trigger a sensor rescanning
-4) get the id of a sensor on a specific port
-
-
-4) enable or disable a sensor port
-5) get a single reading of enabled sensors
-6) start a batch reading of enabled sensors
-7) stop a batch reading
-
-
-5) manually set a sensor id
-6) manually set a sensor io port config
-7) 
-
-Sending commands:
-
-
-
-
-//===== Macro Constants =====//
-
-// Define a default BAUD_RATE of 9600 if none were defined by GALP.
-#ifndef BAUD_RATE
-    #define BAUD_RATE 9600
-#endif
-
-// Define a default SRAM_SIZE of 2048 (The amount of SRAM an Arduino Uno Rev3 has) if none were defined by GALP.
-#ifndef SRAM_SIZE
-    #define SRAM_SIZE 2048
-#endif
-
-//=== Bitmasks that can be used with `statusFlags` to determine various states and settings.
-// The type of reading that was most recently taken (or is in progress).
-#define READING_TYPE B00000011
-// Whether there's a currently a sensor reading in progress.
-#define READING_IN_PROGRESS B00000100
-// The address of the last analog pin that a reading was taken from.
-#define LAST_ANALOG_ADDRESS B00111000
-// Whether the pins used by digital sensor 1 should be read from during batch readings.
-#define DIGITAL_1_ENABLED B01000000
-// Whether the pins used by digital sensor 2 should be read from during batch readings.
-#define DIGITAL_2_ENABLED B10000000
-// Sets that a single batch reading has been finished and the result needs to be handled.
-#define RESULT_READY B00000011
-
-//=== Bitmasks that can be used with `sensorFlags` to determine which ports have sensors connected to them, and which
-//=== analog pins are used by connected analog sensors.
-// Whether there's currently a sensor connected to the specified port.
-#define ANALOG_1_CONNECTED B00000001
-#define ANALOG_2_CONNECTED B00000010
-#define DIGITAL_1_CONNECTED B00000100
-#define DIGITAL_2_CONNECTED B00001000
-// Whether the specified analog pin should be read from during batch readings.
-#define A0_ENABLED B00010000
-#define A1_ENABLED B00100000
-#define A2_ENABLED B01000000
-#define A3_ENABLED B10000000
-
-//=== Bitmasks for reading and writing from the ADMUX register.
-// Prefix for setting the ADC reference voltage to the onboard 5v power supply.
-#define ADMUX_PREFIX (1<<REFS0)
-// Bitmask that can be used to read the current address stored in the ADMUX register.
-#define ADMUX_ADDRESS B00001111
-// The ADMUX address for the analog pins.
-#define A0_ADDRESS 0
-#define A1_ADDRESS 1
-#define A2_ADDRESS 2
-#define A3_ADDRESS 3
-#define A4_ADDRESS 4
-#define A5_ADDRESS 5
-
-// Bit value for starting the ADC.
-#define ADCSRA_START (1<<ADEN)|(1<<ADSC)|(1<<ADIE)|(1<<ADPS2)
-// Bit value for reading the 
-
-
 
 //===== Global Variables =====//
-// Buffer for storing data readings in between transmissions to the client.
-volatile uint8_t dataBuffer[(int)(SRAM_SIZE * 0.6)];
-// The starting index of the unhandled data in the dataBuffer.
-uint32_t dataStartPos = 0;
-// The ending index of the unhandled data in the dataBuffer.
-volatile uint32_t dataStopPos = 0;
-// Bit array that holds flags for the status of various operations and components of the Arduino.
-volatile uint8_t statusFlags = B00000000;
-// Bit array that holds which sensors connected and whether they're enabled for batch readings.
-volatile uint8_t sensorFlags = B00000000;
-// Array containing the last ID voltage for every sensor port on the Vernier interface.
-volatile uint8_t sensorIDs[4];
-// Fields for temporarily storing sensor readings before writing them into the data buffer.
-volatile uint32_t datastoreA; volatile uint16_t datastoreB;
-// Field for temporarily storing the time (in microseconds) a reading was started at.
-volatile uint32_t timestore;
 
-
+// Stores the current state of various Arduino operations.
+volatile uint8_t statusFlags =  B00000000;
+// Stores which ports and analog pins are currently enabled; They're all disabled to start.
+uint8_t enabledFlags = B00000000;
+// Stores whether each digital pin is in input or output mode; They're all in input mode to start.
+uint8_t pinModeFlags = B11111111;
+// Stores the ID of what sensor is connected to each port, 0 indicates no sensor is connected.
+uint8_t sensorIDs[4] = {0, 0, 0, 0};
+//  Stores the current sample period the Arduino is operating at in nanoseconds; This is 0.1s to start.
+uint32_t samplePeriod = 100000000;
+// Stores the starting position of data in the serial output buffer.
+uint16_t serialStartPos = 0;
+// Stores the ending position of data in the serial output buffer.
+volatile uint16_t serialStopPos = 0;
+// Buffer for temporarily storing data before writing it to the client.
+volatile uint8_t outputBuffer[SERIAL_BUFFER_SIZE];
+// Variable for temporarily storing time readings
+#ifdef AVERAGE_COUNT
+// If averaging is enabled we allocate a buffer and counter for performing said averaging.
+    // Buffer for temporarily storing readings to be averaged together.
+    uint8_t averagingBuffer[AVERAGE_COUNT * 10];
+    // Counter that tracks how many readings are currently stored in the buffer.
+    uint8_t averagingCounter = 0;
+#else
+    // Variables for temporarily storing
+    uint32_t timestore; uint32_t datastoreA; uint16_t datastoreB;
+#endif
 
 //===== Functions =====//
-// This function gets called once when the program first starts up. 
+
+// Writes an error message into the serial output buffer with the accompanying `COMMAND_REPORT_ERROR` command code.
+void inline reportError(const uint8_t& errorCode)
+{
+    switch(SERIAL_BUFFER_SIZE - serialStopPos)
+    {
+  #ifdef SAFE_MODE
+        case 0: // This shouldn't happen since serialStopPos should wrap around to 0 after reaching SERIAL_BUFFER_SIZE.
+            outputBuffer[0] = (RESPONSE_PREFIX | COMMAND_REPORT_ERROR);
+            outputBuffer[1] = errorCode;
+            outputBuffer[2] = (RESPONSE_PREFIX | COMMAND_REPORT_ERROR);
+            outputBuffer[3] = ERROR_UNWRAPPED_STOP_POS;
+            serialStopPos = 4;
+            return;
+  #endif
+        case 1: // If there's only 1 free byte left in the output buffer before wrap-around.
+            outputBuffer[serialStopPos] = (RESPONSE_PREFIX | COMMAND_REPORT_ERROR);
+            outputBuffer[0] = errorCode;
+            serialStopPos = 1;
+            return;
+        case 2: // If there's only 2 free bytes left in the output buffer before wrap-around.
+            outputBuffer[serialStopPos] = (RESPONSE_PREFIX | COMMAND_REPORT_ERROR);
+            outputBuffer[serialStopPos+1] = errorCode;
+            serialStopPos = 0;
+            return;
+        default: // If there's more than 2 free bytes left in the output buffer before wrap-around.
+            outputBuffer[serialStopPos] = (RESPONSE_PREFIX | COMMAND_REPORT_ERROR);
+            outputBuffer[serialStopPos+1] = errorCode;
+            serialStopPos += 2;
+            return;
+    }
+}
+
+// Starts an analog reading on the specified analog pin.
+inline void startAnalogReading(const uint8_t& address)
+{
+  #ifdef DEBUG_MODE
+  {
+    // Send a copy of all the registry values and variables before starting the next analog reading.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_ANALOG_START_START, 0, 0, 0, 0,
+                           DEBUG_VALUE_ANALOG_ADDRESS, address, DEBUG_VALUE_STATUSFLAGS, statusFlags,
+                           DEBUG_VALUE_ADMUX, ADMUX, DEBUG_VALUE_ADCSRA, ADCSRA};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 14);
+  }
+  #endif
+
+    // Clear the old analog address and write the new one into `statusFlags`.
+    statusFlags = (statusFlags & ~CURRENT_ANALOG_PIN_ADDRESS) | address;
+    // Set the address in the ADC and set for it to use the onboard 5v power rail as the reference voltage.
+    ADMUX = (1 << REFS0) | address;
+    // Enables the ADC, starts a conversion with interrupts enabled, and sets the ADC clock to a multiplier of 16.
+    ADCSRA = (1 << ADEN)|(1 << ADSC)|(1 << ADIE)|(1 << ADPS2);
+
+  #ifdef DEBUG_MODE
+  {
+    // Send a copy of all the registry values and variables after the next analog reading was started.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_ANALOG_START_FINISH, 0, 0, 0, 0,
+                           DEBUG_VALUE_ANALOG_ADDRESS, address, DEBUG_VALUE_STATUSFLAGS, statusFlags,
+                           DEBUG_VALUE_ADMUX, ADMUX, DEBUG_VALUE_ADCSRA, ADCSRA};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 14);
+  }
+  #endif
+}
+
+// Checks if there's been an ADC interrupt and handles it if there has been. Returns true if an interrupt was handled.
+inline bool handleAnalogInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+    // Do nothing if there isn't an ADC interrupt to handle.
+    if(!(statusFlags & ADC_INTERRUPT_BITMASK))
+    {
+        return false;
+    }
+
+  #ifdef AVERAGE_COUNT
+//TODO
+  #else
+//TODO
+  #endif
+
+    // Clear the ADC interrupt flag.
+    statusFlags &= ~ADC_INTERRUPT_BITMASK;
+    return true;
+}
+
+// Checks if there's been a timer interrupt and handles it if there has been. Returns true if an interrupt was handled.
+// Timer interrupts are only used for batch readings.
+inline bool handleTimerInterrupt()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+    // Do nothing if there isn't a timer interrupt to handle.
+    if(!(statusFlags & TIMER_INTERRUPT_BITMASK))
+    {
+        return false;
+    }
+
+  #ifdef AVERAGE_COUNT
+    // Store the time that the reading was started at.
+    uint32_t time = micros();
+    averagingBuffer[averagingCounter]   = time         & B11111111;
+    averagingBuffer[averagingCounter+1] = (time >> 8)  & B11111111;
+    averagingBuffer[averagingCounter+2] = (time >> 16) & B11111111;
+    averagingBuffer[averagingCounter+3] = (time >> 24) & B11111111;
+
+    if(PORT_ENABLED_BITMASK_DIGITAL_1 & enabledFlags)
+    {
+        // Copies the values of digital pins 2,3,4,5 (only those in input mode) into bits 0~3 of the averaging entry.
+        averagingBuffer[averagingCounter+4] = ((PORTB & B00111100) >> 2) & pinModeFlags;
+    }
+
+    if(PORT_ENABLED_BITMASK_DIGITAL_2 & enabledFlags)
+    {
+        // Copies the values of digital pins 6,7,8,9 (only those in input mode) into bits 4~7 of the averaging entry.
+        averagingBuffer[averagingCounter+4] |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6) & pinModeFlags;
+    }
+  #else
+    // Clear the old temporary datastores.
+    datastoreB = 0; datastoreA = 0;
+
+    // Store the time that the reading was started at.
+    timestore = micros();
+
+    if(PORT_ENABLED_BITMASK_DIGITAL_1 & enabledFlags)
+    {
+        // Copies the values of digital pins 2,3,4,5 (only those in input mode) into bits 0~3 of the datastore.
+        datastoreA = ((PORTB & B00111100) >> 2) & pinModeFlags;
+    }
+
+    if(PORT_ENABLED_BITMASK_DIGITAL_2 & enabledFlags)
+    {
+        // Copies the values of digital pins 6,7,8,9 (only those in input mode) into bits 4~7 of the datastore.
+        datastoreA |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6) & pinModeFlags;
+    }
+  #endif
+
+    // Start a reading on the lowest address analog pin that's enabled, or if none are enabled, end the reading.
+    if(PIN_ENABLED_BITMASK_ANALOG_0 & enabledFlags)
+    {
+        startAnalogReading(PIN_ADDRESS_ANALOG_0);
+    } else
+    if(PIN_ENABLED_BITMASK_ANALOG_1 & enabledFlags)
+    {
+        startAnalogReading(PIN_ADDRESS_ANALOG_1);
+    } else
+    if(PIN_ENABLED_BITMASK_ANALOG_2 & enabledFlags)
+    {
+        startAnalogReading(PIN_ADDRESS_ANALOG_2);
+    } else
+    if(PIN_ENABLED_BITMASK_ANALOG_3 & enabledFlags)
+    {
+        startAnalogReading(PIN_ADDRESS_ANALOG_3);
+    } else {
+      #ifdef SAFE_MODE
+        // Report an error if the reading was already marked as completed.
+        if(statusFlags & READING_COMPLETE_BITMASK)
+        {
+            reportError(ERROR_READING_ALREADY_COMPLETED);
+        }
+      #endif
+
+        // Set that this reading is finished.
+        statusFlags |= READING_COMPLETE_BITMASK;
+    }
+
+    // Clear the timer interrupt flag
+    statusFlags &= ~TIMER_INTERRUPT_BITMASK;
+    return true;
+}
+
+inline void rescanSensors()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+
+}
+
+inline void processClientCommands()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+
+}
+
+inline void flushSerialOutput()// TODO NEEDS DEBUG_MODE/SAFE_MODE
+{
+
+}
+
+// This function gets called once when the program first starts; it initializes the serial connection, and sets up
+// various registers and states of the Arduino for the program.
 void setup()
 {
-    // Start the serial connection at the specified baud rate
+    // Start a serial connection.
     Serial.begin(BAUD_RATE);
 
-#ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("Established connection:"));
-    Serial.println(millis());
-    Serial.write(DEBUG_SUFFIX);
-#endif
-
-#ifdef BACKUP
-  #ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("Saving to EEPROM:"));
-    Serial.println(millis());
-    Serial.write(DEBUG_SUFFIX);
+  #ifdef DEBUG_MODE
+  {
+    // Send a copy of all the registry values we alter before setup starts.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_SETUP_START, 0, 0, 0, 0,
+                           DEBUG_VALUE_DDRB, DDRB, DEBUG_VALUE_DDRC, DDRC, DEBUG_VALUE_DDRD, DDRD,
+                           DEBUG_VALUE_PORTB, PORTB, DEBUG_VALUE_PORTC, PORTC, DEBUG_VALUE_PORTD, PORTD,
+                           DEBUG_VALUE_DIDR0, DIDR0, DEBUG_VALUE_DIDR1, DIDR1,
+                           DEBUG_VALUE_ADCSRA, ADCSRA, DEBUG_VALUE_ADCSRB, ADCSRB, DEBUG_VALUE_ACSR, ACSR};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 28);
+  }{
+    // Send a copy of all the macro values the program started up with.
+    const uint32_t BAUD_RATE_HOLDER = BAUD_RATE;
+    const uint32_t SERIAL_BUFFER_SIZE_HOLDER = SERIAL_BUFFER_SIZE;
+    const uint8_t AVERAGE_COUNT_HOLDER = AVERAGE_COUNT;
+  #ifdef SAFE_MODE
+    const uint8_t SAFE_MODE_HOLDER = 1;
+  #else
+    const uint8_t SAFE_MODE_HOLDER = 0;
   #endif
-
-    // Save a backup of all the Arduino's critical registers before we start setting them.
-    //TODO save the registers to EEPROM!
-
-  #ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("Backup complete:"));
-    Serial.println(millis());
-    Serial.write(DEBUG_SUFFIX);
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_MACRO_DUMP, 0, 0, 0, 0, DEBUG_VALUE_BAUD_RATE,
+                           ((BAUD_RATE_HOLDER >> 24) & B11111111), ((BAUD_RATE_HOLDER >> 16) & B11111111),
+                           ((BAUD_RATE_HOLDER >> 8) & B11111111), (BAUD_RATE_HOLDER & B11111111), DEBUG_VALUE_SERIAL_SIZE,
+                           ((SERIAL_BUFFER_SIZE_HOLDER >> 24) & B11111111), ((SERIAL_BUFFER_SIZE_HOLDER >> 16) & B11111111),
+                           ((SERIAL_BUFFER_SIZE_HOLDER >> 8) & B11111111), (SERIAL_BUFFER_SIZE_HOLDER & B11111111),
+                           DEBUG_VALUE_AVERAGE_COUNT, AVERAGE_COUNT_HOLDER, DEBUG_VALUE_DEBUG_MODE, 1,
+                           DEBUG_VALUE_SAFE_MODE, SAFE_MODE_HOLDER};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 22)
+  }
   #endif
-#endif
 
     // Set analog pins A0,A1,A2,A3,A4,A5 to input mode without changing bit 6 or 7.
     DDRC &= B11000000;
@@ -332,429 +424,110 @@ void setup()
     // Disable the analog comparator.
     ACSR |= (1 << ACD);
 
-    // TODO ensure that all the timer registries are set how we want still!
+  #ifdef DEBUG_MODE
+  {
+    // Send a copy of all the registry values we alter after setup has finished.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_SETUP_FINISH, 0, 0, 0, 0,
+                           DEBUG_VALUE_DDRB, DDRB, DEBUG_VALUE_DDRC, DDRC, DEBUG_VALUE_DDRD, DDRD,
+                           DEBUG_VALUE_PORTB, PORTB, DEBUG_VALUE_PORTC, PORTC, DEBUG_VALUE_PORTD, PORTD,
+                           DEBUG_VALUE_DIDR0, DIDR0, DEBUG_VALUE_DIDR1, DIDR1,
+                           DEBUG_VALUE_ADCSRA, ADCSRA, DEBUG_VALUE_ADCSRB, ADCSRB, DEBUG_VALUE_ACSR, ACSR};
+                           DEBUG_VALUE_ACSR, ACSR};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 28);
+  }
+  #endif
 
+    // Send the ready command to the client, notifying it the Arduino is ready for communcation.
+    Serial.write(RESPONSE_PREFIX | DEBUG_CONNECTION_READY);
+    Serial.flush();
 
-#ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("Configured pins:"));
-    Serial.println(millis());
-    Serial.print(F("DDRB:"));
-    Serial.println(DDRB, BIN);
-    Serial.print(F("DDRC:"));
-    Serial.println(DDRC, BIN);
-    Serial.print(F("DDRD:"));
-    Serial.println(DDRD, BIN);
-    Serial.print(F("PORTB:"));
-    Serial.println(PORTB, BIN);
-    Serial.print(F("PORTC:"));
-    Serial.println(PORTC, BIN);
-    Serial.print(F("PORTD:"));
-    Serial.println(PORTD, BIN);
-    Serial.print(F("DIDR0:"));
-    Serial.println(DIDR0, BIN);
-    Serial.print(F("DIDR1:"));
-    Serial.println(DIDR1, BIN);
-    Serial.write(DEBUG_SUFFIX);
-#endif
+    // Wait until an echoing ready command is received from the client.
+    while(true)
+    {
+        while(Serial.available() == 0){}
+        const byte command = Serial.read();
+        if(command != (COMMAND_PREFIX | COMMAND_READY))
+        {
+            Serial.write(RESPONSE_PREFIX | COMMAND_READY);
+            Serial.flush();
+        }
+    }
+
+  #ifdef DEBUG_MODE
+  {
+    // Log that everything is ready and the program is about to enter the main loop.
+    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_READY, 0, 0, 0, 0};
+    const uint32_t time = micros();
+    values[2] = time         & B11111111;
+    values[3] = (time >> 8)  & B11111111;
+    values[4] = (time >> 16) & B11111111;
+    values[5] = (time >> 24) & B11111111;
+    Serial.write(values, 6);
+  }
+  #endif
 }
 
-
-
+// This gets called in a loop during program execution and handles the program's main logic.
 void loop()
 {
+    if(handleAnalogInterrupt() || handleTimerInterrupt())
+    {
+        return;
+    }
 
+    switch(statusFlags & CURRENT_READING_TYPE)
+    {
+        case READING_TYPE_NONE:
+            rescanSensors();
+
+        case READING_TYPE_BATCH:
+            processClientCommands();
+
+        case READING_TYPE_SINGLE:
+        case READING_TYPE_IDENTIFY:
+            flushSerialOutput();
+        break;
+
+      #ifdef SAFE_MODE
+        case default:
+            // This should be impossible.
+            reportError(ERROR_DEFAULT_READING_TYPE);
+        break;
+      #endif
+    }
 }
 
-
-
-// Convenience method for starting a new analog reading on the specified analog pin.
-inline void startAnalogReading(const uint8_t& address)
-{
-    // Clear the old 'last analog address' and set it to the new address
-    statusFlags = (statusFlags & ~LAST_ANALOG_ADDRESS) | (address << 3);
-    // Set the address in the analog to digital converter and start the converter.
-    ADMUX = ADMUX_PREFIX | address;
-    ADCSRA = ADCSRA_START;
-}
-
-
-
-// Interrupt service routine that gets called when a reading should be taken during a batch reading.
+// Interrupt service routine that gets called by the timer at the end of every sample period.
 ISR(TIMER1_COMPA_vect)
 {
-#ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("Timer interrupt:"));
-    Serial.println(millis());
-    Serial.write(DEBUG_SUFFIX);
-#endif
+  #ifdef SAFE_MODE
+    // Report an error if the last timer interrupt still hasn't been handled.
+    if(statusFlags & TIMER_INTERRUPT_BITMASK)
+    {
+        reportError(ERROR_UNHANDLED_TIMER_ISR);
+    }
+  #endif
 
-    // Clear old readings out of the datastore.
-    datastoreA = 0; datastoreB = 0;
-    // Set the time that this new reading starts at.
-    timestore = micros();
-    
-    // Read from the digital ports if they're enabled during batch readings.
-    if(DIGITAL_1_ENABLED & statusFlags)
-    {
-        // Copies the states of digital pins 2,3,4,5 into bits 40~43 of the datastore.
-        datastoreA |= ((uint32_t)(PORTB & B00111100) << 22);
-    }
-    if(DIGITAL_2_ENABLED & statusFlags)
-    {
-        // Copies the states of digital pins 6,7,8,9 into bits 44~47 of the datastore.
-        datastoreA |= ((uint32_t)(PORTB & B11000000) << 22) | ((uint32_t)(PORTD & B00000011) << 30);
-    }
-
-    // Start a reading from the lowest address analog pin that's enabled,
-    // or if no analog readings are enabled, signal that the reading is done.
-    if(A0_ENABLED & sensorFlags)
-    {
-        startAnalogReading(AO_ADDRESS);
-    } else
-    if(A1_ENABLED & sensorFlags)
-    {
-        startAnalogReading(A1_ADDRESS);
-    } else
-    if(A2_ENABLED & sensorFlags)
-    {
-        startAnalogReading(A2_ADDRESS);
-    } else
-    if(A3_ENABLED & sensorFlags)
-    {
-        startAnalogReading(A3_ADDRESS);
-    } else {
-        // Set that this reading is ready to be handled by the main loop.
-        statusFlags |= RESULT_READY;
-    }
+    // Set a flag indicating a new reading should be started.
+    statusFlags |= TIMER_INTERRUPT_BITMASK;
 }
-
-
 
 // Interrupt service routine that gets called whenever an analog reading has been finished.
 ISR(ANALOG_COMP_vect)
 {
-#ifdef DEBUG
-    Serial.write(DEBUG_PREFIX);
-    Serial.print(F("ADC interrupt:"));
-    Serial.println(millis());
-    Serial.write(DEBUG_SUFFIX);
-#endif
-
-    static bool readingHandled = false;
-
-    // Switch off the address of the analog pin that the reading was taken from.
-    switch(statusFlags & LAST_ANALOG_ADDRESS)
+  #ifdef SAFE_MODE
+    // Report an error if the last ADC interrupt still hasn't been handled.
+    if(statusFlags & ADC_INTERRUPT_BITMASK)
     {
-        case 0:
-        {
-            // Readings are always taken in order, so the reading must of been from this pin (A0).
-            // Write it's value into datastore, and set that the reading has been handled.
-            datastoreB |= ((uint16_t)(ADCL) << 0);
-            datastoreB |= ((uint16_t)(ADCH & B00000011) << 8);
-            readingHandled = true;
-        }
-        case 1:
-        {
-            if(readingHandled) // The reading was taken from a previous pin.
-            {
-                if((A1_ENABLED & sensorFlags)) // If this sensor is enabled for batch readings, take it's reading next.
-                {
-                    startAnalogReading(A1_ADDRESS);
-                    return;
-                }
-            } else { // If the reading was taken from this pin (A1), write it's value into datastore.
-                datastoreB |= ((uint16_t)(ADCL & B00111111) << 10);
-                datastoreA |= ((uint32_t)(ADCL & B11000000) >> 6);
-                datastoreA |= ((uint32_t)(ADCH & B00000011) << 2);
-                readingHandled = true;
-            }
-        }
-        case 2:
-        {
-            if(readingHandled) // The reading was taken from a previous pin.
-            {
-                if((A2_ENABLED & sensorFlags)) // If this sensor is enabled for batch readings, take it's reading next.
-                {
-                    startAnalogReading(A2_ADDRESS);
-                    return;
-                }
-            } else { // If the reading was taken from this pin (A2), write it's value into datastore.
-                datastoreA |= ((uint32_t)(ADCL) << 4);
-                datastoreA |= ((uint32_t)(ADCH & B00000011) << 12);
-                readingHandled = true;
-            }
-        }
-        case 3:
-        {
-            if(readingHandled) // The reading was taken from a previous pin.
-            {
-                if((A3_ENABLED & sensorFlags)) // If this sensor is enabled for batch readings, take it's reading next.
-                {
-                    startAnalogReading(A3_ADDRESS);
-                    return;
-                } else { // If the reading was handled and none of the following pins were enabled, end the reading.
-                    statusFlags |= RESULT_READY;
-                    return;
-                }
-            } else { // If the reading was taken from this pin (A3), write it's value into datastore.
-                datastoreA |= ((uint32_t)(ADCL) << 14);
-                datastoreA |= ((uint32_t)(ADCH) << 22);
-                
-                // Pin A3 is the last pin checked during batch readings. If we've read it in, the reading must be over.
-                statusFlags |= RESULT_READY;
-                return;
-            }
-        }
-        case 4:// If the reading was taken from pin A4 (resistance measurement).
-        {
-            //TODO
-            return;
-        }
-        case 5:// If the reading was taken from pin A5 (identification voltage).
-        {
-            //TODO
-            return;
-        }
-#ifdef DEBUG
-        default:// This should be impossible.
-        {
-            Serial.write(DEBUG_PREFIX);
-            Serial.print(F("!ANALOG DEFAULT REACHED!:"));
-            Serial.println(millis());
-            Serial.write(DEBUG_SUFFIX);
-            return;
-        }
-#endif
+        reportError(ERROR_UNHANDLED_ADC_ISR);
     }
+  #endif
+
+    // Set a flag indicating an analog reading was finished.
+    statusFlags |= ADC_INTERRUPT_BITMASK;
 }
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-// Interrupt service routine that gets called during a batch reading when a reading should be taken.
-// Timer1 ensures this is called at the end of every sample period. It starts taking sensor readings,
-// and if no other analog readings need to be taken singals that the reading has finished. Otherwise
-// it starts the first necessary analog reading.
-
-
-
-//===== Program Functions =====//
-/** This method gets called once at the very beginning, and is used to setup and setup and construct everything
-  * the Arduino will need to function. **/
-void setup()
-{
-    // First we set what each pin is going to be used for, starting by setting them in 'input' or 'output' mode.
-    // Input mode means the pin only passively receives voltages as input (like for taking voltage readings from
-    // sensors), and output mode means the pin actively supplies and changes it's own voltage (like for changing
-    // states on the Vernier interface).
-    //
-    // Here we set these properties using the DDRs (Data Direction Registers). These just store 8bit binary values
-    // where each bit represents what mode a single pin is going to be in, 0 indicates input mode, and 1 indicates
-    // output mode. They're encoded in reverse order, so B10000100 here pin 2 and pin 7 are in output mode, and the
-    // rest would be in input mode (remember, the pins start counting at pin 0).
-    //
-    // There are 3 DDRs, DDRB (controls digital pins 0 through 7), DDRC (controls analog pins A0 through A5, the
-    // last 2 bits aren't used, since there's no A6 or A7), and DDRD (controls digital pins 8 through 13, again,
-    // the last 2 bits aren't used, since there's no pin 14 and 15). Note that the 4 bits that aren't used because
-    // no pin exists to use them is only half true. These bits aren't used for the pins, but ARE used for other
-    // things, and hence shouldn't be messed with. Additionally digital pins 0 and 1 are reserved for serial
-    // communication by the board, and again, shouldn't be messed with. For more information on all this, check out:
-    //        https://www.arduino.cc/en/Reference/PortManipulation
-
-    // We set these registers using bitwise operations, for more information on how these work, just look up
-    // "bitwise operations". Here we mostly use AND (&) and OR (|). The following is a pragmatic explanation
-    // of what they actually do, at least as far as we use them in this project:
-    //
-    // &= is bitwise AND, it doesn't affect any bits where there's a 1, but will set any bit to 0 where there's
-    //    a 0. For example &= B00000110 Will set every bit to 0, except bit 1 and 2 (which aren't changed at all).
-    //
-    // |= is a bitwise OR, it doesn't affect any bits where there's a 0, but will set any bit to 1 where there's
-    //    a 1 (the opposite of bitwise AND). For example |= B11111001 Will set every bit to 1, except bit 1 and 2
-    //    (which aren't changed at all).
-
-    // Finally, pins 0 and 1 are reserved by the Arduino for serial communication, the rest of the pins are used
-    // by the Vernier interface as follows:
-    //     A0~A3 are used for taking readings from the analog sensors.
-    //     A4    is used to measure resistances due to the board's components, this value is used to compensate
-    //           and calibrate the voltages read from the sensors.
-    //     A5    is used to identify sensors. Every sensor has a slightly different internal resistance; readings
-    //           from this pin can use this fact to tell what kind of sensor is connected.
-    //     2~9   are used for communicating with and taking readings from digital sensors.
-    //     10,11 are used for multiplex (mux) addressing. All 4 sensors share A4 and A5 for transmitting resistance
-    //           information. So in order to get resistance readings for a single sensor, these pins are used to
-    //           tell the Vernier interface the 'address' of the sensor to transmit. The 'MUX ADDR's are printed on
-    //           the Vernier interface with each address being 2 bits. The first bit (most significant bit)
-    //           corresponds to pin 11, and the second bit (least significant bit) corresponds to pin 10. So, for
-    //           example, having pin10=1 and pin11=0 will give the mux address '01', which corresponds to 'ANALOG 2'.
-    //     12    This is mapped to the button on the vernier interface.
-    //     13    This is mapped to the LED on the vernier interface.
-    
-    // With all that out of the way, we first set the pin operation modes.
-
-    //===== Set the analog pin modes =====//
-    // Clear every analog pin mode (A0~A5) to 0 (input mode). We only take readings from the analog pins, so none
-    // of the pins should be in output mode.
-    // This sets pins A0,A1,A2,A3,A4,A5 to 0 (input mode), and doesn't change the 6th and 7th bits.
-    DDRC &= B11000000;
-  
-
-    //===== Set the digital pin modes =====//
-    // First clear every digital pin (except 0 and 1) to 0 (input mode), so they're in a known state.
-    
-    // Sets pins 2,3,4,5,6,7 to 0 (input mode), and doesn't change the modes of pins 0 and 1.
-    DDRD &= B00000011;
-    // Sets pins 8,9,10,11,12,13 to 0 (input mode), and doesn't change the 6th and 7th bits.
-    DDRB &= B11000000;
-    
-    // Next, we set the pin modes to 1 for the pins that should be in output mode. The only pin that needs to be in
-    // output mode is pin13 (for the LED). Each digital sensor uses it's pins differently, so we set the pin modes
-    // for each specific sensor later when we detect what kind of sensors are connected to which ports.
-
-    // Sets pin 13 to 1 (output mode), and doesn't change any of the other pin modes.
-    DDRB |= B00100000;
-
-
-    //===== Enable pull up resistors =====//
-    // The arduino also has pullup-resistors, which can be used to invert the signal on a digital pin. We need to
-    // enable this for the push button so it isn't always on. If you want to know more about this you can read:
-    //        https://www.arduino.cc/en/Tutorial/DigitalPins
-    // and read the section "Properties of pins configured as INPUT_PULLUP".
-    //
-    // But basically there's another set of registers called PORT (there's a PORTB, PORTC, and PORTD which correspond
-    // to the same pins as the DDRs did). And we just need to set a single bit on pin 12 to 1 to enable this.
-    PORTB |= B00010000;
-
-
-    //===== Disable unnecessary features for performance =====//
-    // DIDR0 stands for "Digital Input Disable Register". Normally the Arduino automatically lets you read the analog
-    // pins as if they were digital inputs instead. Here we only ever take true analog readings from the analog pins,
-    // so we use this register to disable this feature on pins A5,A4,A3,A2,A1,A0 by writing a 1 into the corresponding
-    // bit locations. The 6th and 7th bit are unused and should always be 0.
-    DIDR0 |= B00111111;
-
-    // ADCSR stands for "Analog to Digital Convert Status Register" and is used to control the chip that takes
-    // analog readings. The ADCSR is used to set up auto-triggering of the ADC, which we never use. All the readings
-    // we take are manually triggered. So we set the entire register to 0 to disable this. (This also disables input
-    // multiplexing, which is complicated and not worth explaining, but we don't need it.)
-    ADCSRB = B00000000;
-}
-
-/** Function that writes the temporary datastores into the data buffer for transmission. **/
-inline void writeTempDatastores()
-{
-    // Check if theres enough space to fit the whole datastore in the buffer without wrapping around.
-    if(dataStopPos <= DATA_BUFFER_SIZE)
-    {
-        // If there is, write the datastore into the buffer and increment the stop position by 6 afterwards.
-        // To write the datastore into the data buffer we break it into 6 bytes (the datastore has 48 bits,
-        // and 1byte is 8 bits, so 48/8=6). We do this by shifting the bits so the 8 bits we want are at the end
-        // of the datastore, then we use a bitwise AND to only keep those 8 bits and drop everything else.
-        dataBuffer[dataStopPos] =   (tempDatastoreA >> 24) & B11111111;
-        dataBuffer[dataStopPos+1] = (tempDataStoreA >> 16) & B11111111;
-        dataBuffer[dataStopPos+2] = (tempDatastoreA >> 8)  & B11111111;
-        dataBuffer[dataStopPos+3] = tempDataStoreA         & B11111111;
-        dataBuffer[dataStopPos+4] = (tempDataStoreB >> 8)  & B11111111;
-        dataBuffer[dataStopPos+5] = tempDataStoreB         & B11111111;
-        dataStopPos += 6;
-    } else {
-        // If there isn't enough space to fit everything in the data buffer without needing to wrap around, we check
-        // if we need to wrap around after writting every single byte. Otherwise we write the data the same as above.
-
-        // We make a copy of the data stop position that we increment and check after every write.
-        static uint32_t tempStopPos = dataStopPos;
-
-        dataBuffer[tempStopPos] = (tempDatastoreA >> 24) & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-        dataBuffer[tempStopPos] = (tempDataStoreA >> 16) & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-        dataBuffer[tempStopPos] = (tempDatastoreA >> 8)  & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-        dataBuffer[tempStopPos] = tempDataStoreA         & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-        dataBuffer[tempStopPos] = (tempDataStoreB >> 8)  & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-        dataBuffer[tempStopPos] = tempDataStoreB         & B11111111;
-        if(tempStopPos == (DATA_BUFFER_SIZE-1)) {tempStopPos = 0;} else {tempStopPos++;}
-
-        // After we've finished writing the data into the buffer, update the actual data stop position.
-        dataStopPos = tempStopPos;
-    }
-}
-inline void takeBatchReading()
-{
-    if(DIGITAL_1_ENABLED & sensorFlags)
-    {
-        // Copy the values of digital pins 2,3,4,5 into the temporary datastore (specifically bits 40~43).
-        // The values of the digital pins are stored in the PORT_ registers, with there being a PORTB,
-        // PORTC, and PORTD which map to the same pins that the respective DDR_ registers did in "setup()".
-        // Here we use PORTB to get digital pins 0~7, then only pick out 2,3,4,5 with a bitmask. Then we shift
-        // the bits by 22 places to where they should be in tempDatastoreA and write them into it.
-        tempDatastoreA |= ((uint32_t)(PORTB & B00111100) << 22);
-    }
-    if(DIGITAL_2_ENABLED & sensorFlags)
-    {
-        // Copy the values of digital pins 6,7,8,9 into the temporary datastore (specifically bits 44~47).
-        // We use the same logic as for digital sensor 1, but here we have to check both PORTB (for bits 6,7), and
-        // PORTD (for bits 8,9). Then we shift them and write them into tempDatastoreA.
-        tempDatastoreA |= ((uint32_t)(PORTB & B11000000) << 22) | ((uint32_t)(PORTD & B00000011) << 30);
-    }
-    if(ANALOG_1_ENABLED & sensorFlags)
-    {
-        // ADMUX is the "Analog to Digital Multiplexer", it's used to select a reference voltage, and specify
-        // which analog pin to take readings off of. Here we use ADMUX_PREFIX (Defined at the beginning of the program)
-        // to select the board's 5v power supply as the reference voltage, and then set it to also read from pin A0.
-        ADMUX = ADMUX_PREFIX | A0_ADDRESS;
-        // ADCSR stands for "Analog to Digital Convert Status Register" and is used to control the chip that takes
-        // analog readings. Here we enable enable the chip, start a reading, and tell it to issue an interrupt when
-        // it's finished (that way we can process other things while the chip is working).
-        // "ADEN" stands for "Analog to Digital ENable",
-        // "ADSC" stands for "Analog to Digital Start Conversion"
-        // "ADIE" stands for "Analog to Digital Interrupt Enable"
-        ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE);
-
-    }
-}
-/** This is an "Interrupt Service Routine". It's a function that will be run whenever TIMER1 reaches it's
-  * compare-match value (COMP1A). It quickly takes a reading from all the sensors that are being used and
-  * stores it in the data buffer.
-  *
-  * Within this program, this function is called during batch readings once every sample period, as the
-  * sample period is what TIMER1 is setup to compare-match with. **/
-
-//===== Macros =====//
-// This program makes use of macros; these are programming instructions that are run when the program is first
-// compiled, before the actual program ever starts running. This means they take up no space and don't use any
-// processing power, since by the time the program starts running, all the macros will of already been run and
-// handled.
-//
-// Additionally macros can be 'defined' (given a value) outside the program. So the main GALP program can use
-// whatever macro values it thinks are most appropiate when uploading the program to the Arduino before starting it.
-// The following are all the macros that can be set outside this program:
-// BACKUP:      Specifies whether the program should store a backup of it's current settings before it starts running
-//              hence providing a fallback in the case this program acidentally bricks the Arduino. It stores a full
-//              backup of all the Arduino's registers in EEPROM memory, which persists even after power is
-//              disconnected. Setting pin 12 high will cause the program to immediately halt it's execution and do a
-//              full restore from the backup. Pin 12 can be set high by pushing the button on the Vernier interface.
-//              By default this isn't enabled, but it's a good idea to use while GALP is still in developement.
-
-
-
-//TODO completely rework debug mode stuff
-//TODO do we need a different comparator for the +-10v lines?
-//TODO see if using F macro on numeric constants saves memory.
-// TODO create DEBUG_PREFIX and DEBUG_SUFFIX
