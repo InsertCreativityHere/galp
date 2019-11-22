@@ -1,232 +1,8 @@
 
-//==== LIMITATIONS AND CONCERNS ====//
-/**
- Baud rates have to be between 0 and 2^32 (512 MBps)
- Data buffer sizes have to be between 0 and 65536 (64KB)
- Average count has to be between 0 and 256
-
- Averages on digital sensors are 1 if the sensor was 1 at any point during any of the readings, and only 0 if it was always 0. This isn't a real average.
- The average is taken between the start time and end time, not the average of every time-point used.
-
- Digital Sensor 2 takes a little longer to read from than digital sensor 1.
- Analog sensors are read in order one at a time, so higher address analog pins will be read after others if other pins are enabled.
-
- There are 2 command codes still unused (13 and 15)
- There are 2 bits unused in statusFlags (11111100)
-**/
-
-/**
- Things to enforce later:
-    debugLogs must take 'DEBUG_'
-    debugLogDumps must take 'ERROR_'
-**/
-
-// TODO SO WHATS THE POINT OF THE DATA BUFFER NOW THEN?
+#include "fast.h"
 
 
 
-
-
-//===== Macros =====//
-
-// Set a default baud rate of 9600bps for the serial connection.
-#ifdef MBAUD_RATE
-    const uint32_t BAUD_RATE = MBAUD_RATE;
-#else
-    const uint32_t BAUD_RATE = 9600;
-#endif
-
-// Set a default size of 256 bytes for the data buffer.
-#ifdef MDATA_BUFFER_SIZE
-    const uint16_t DATA_BUFFER_SIZE = MDATA_BUFFER_SIZE;
-#else
-    const uint16_t DATA_BUFFER_SIZE = 256;
-#endif
-
-// By default averaging is disabled.
-#ifdef MAVERAGE_COUNT
-    const uint8_t AVERAGE_COUNT = AVERAGE_COUNT;
-#else
-    const uint8_t AVERAGE_COUNT = 0;
-#endif
-
-// By default rigorous checking is disabled.
-#ifdef MCHECK_MODE
-    const bool CHECK_MODE = true;
-#else
-    const bool CHECK_MODE = false;
-#endif
-
-// By default debugging mode is disabled.
-#ifdef MDEBUG_MODE
-    const bool DEBUG_MODE = true;
-#else
-    const bool DEBUG_MODE = false;
-#endif
-
-
-
-
-//===== Global Constants =====//
-
-// Prefix bits that mark a byte as representing a command. Usually commands are sent from the client to the Arduino.
-// Command bytes should always have the form: `(COMMAND_PREFIX | COMMAND_CODE)`.
-const uint8_t COMMAND_PREFIX = B01100000;
-// Prefix bits that mark a byte as representing a response. Usuallt responses are sent from the Arduino to the client.
-// Response bytes should always have the form: `(RESPONSE_PREFIX | COMMAND_CODE)`.
-const uint8_t RESPONSE_PREFIX = B01010000;
-// Command codes, these make up the last 4 bits of command and response bytes, and represent what command was issued,
-// or is being responded to.
-const uint8_t COMMAND_DEBUG_LOG           = B0000; //0
-const uint8_t COMMAND_GET_SAMPLE_RATE     = B0001; //1
-const uint8_t COMMAND_SET_SAMPLE_RATE     = B0010; //2
-const uint8_t COMMAND_GET_PORT_STATES     = B0011; //3
-const uint8_t COMMAND_SET_PORT_STATES     = B0100; //4
-const uint8_t COMMAND_GET_PIN_STATES      = B0101; //5
-const uint8_t COMMAND_SET_PIN_STATES      = B0110; //6
-const uint8_t COMMAND_GET_SENSOR_IDS      = B0111; //7
-const uint8_t COMMAND_SET_SENSOR_IDS      = B1000; //8
-const uint8_t COMMAND_TAKE_READING        = B1001; //9
-const uint8_t COMMAND_START_BATCH_READING = B1010; //10
-const uint8_t COMMAND_STOP_BATCH_READING  = B1011; //11
-const uint8_t COMMAND_SCAN_SENSORS        = B1100; //12
-//const uint8_t COMMAND_13_RESERVED         = B1101; //13
-const uint8_t COMMAND_READY               = B1110; //14
-//const uint8_t COMMAND_15_RESERVED         = B1111; //15
-
-
-// Prefix bit that can be set on debug codes to indicate there's additional payload data to be parsed.
-const uint8_t PAYLOAD_CONTINUATION_FLAG = B10000000;
-// Debug codes. These are sent directly after a DEBUG_LOG command as a 7 bit payload to specify what is being logged.
-#ifdef MCHECK_MODE
-#endif
-#ifdef MDEBUG_MODE
-#endif
-
-
-// Bitmasks for getting which ports on the Vernier interface are currently enabled. Only enabled ports have readings
-// taken from them. Ports are enabled if there's a sensor connected and disabled if there isn't. False indicates the
-// pin is disabled and true indicates the pin is enabled.
-// To test if a port is enabled use `(PORT_?_ENABLED_BITMASK & enabledFlags)`.
-const uint8_t PORT_ANALOG_1_ENABLED_BITMASK  = B00000001;
-const uint8_t PORT_ANALOG_2_ENABLED_BITMASK  = B00000010;
-const uint8_t PORT_DIGITAL_1_ENABLED_BITMASK = B00000100;
-const uint8_t PORT_DIGITAL_2_ENABLED_BITMASK = B00001000;
-// Bitmask for getting the portion of `enabledFlags` that contains which ports are enabled.
-const uint8_t PORT_X_ENABLED_BITMASK = B00001111;
-
-// Bitmasks for getting which analog pins are currently enabled. Only enabled pins have readings taken from them.
-// Pins are disabled unless there's a sensor connected that uses the pin, in which case they're enabled. False
-// indicates the pin is disabled and true indicates the pin is enabled.
-// To test if a pin is enabled use `(PIN_?_ENABLED_BITMASK & enabledFlags)`.
-const uint8_t PIN_A0_ENABLED_BITMASK = B00010000;
-const uint8_t PIN_A1_ENABLED_BITMASK = B00100000;
-const uint8_t PIN_A2_ENABLED_BITMASK = B01000000;
-const uint8_t PIN_A3_ENABLED_BITMASK = B10000000;
-// Bitmask for getting the portion of `enabledFlags` that contains which analog pins are enabled.
-const uint8_t PIN_AX_ENABLED_BITMASK = B11110000;
-
-
-// Bitmasks for getting the current mode of each digital pin the Vernier interface uses. A value of false indicates
-// the pin is in input mode, and a value of true indicates the pin is in output mode.
-// To test the mode of a pin use `(PIN_MODE_DIGITAL_?_BITMASK & pinModeFlags)`.
-const uint8_t PIN_MODE_DIGITAL_2_BITMASK = B00000001;
-const uint8_t PIN_MODE_DIGITAL_3_BITMASK = B00000010;
-const uint8_t PIN_MODE_DIGITAL_4_BITMASK = B00000100;
-const uint8_t PIN_MODE_DIGITAL_5_BITMASK = B00001000;
-const uint8_t PIN_MODE_DIGITAL_6_BITMASK = B00010000;
-const uint8_t PIN_MODE_DIGITAL_7_BITMASK = B00100000;
-const uint8_t PIN_MODE_DIGITAL_8_BITMASK = B01000000;
-const uint8_t PIN_MODE_DIGITAL_9_BITMASK = B10000000;
-
-
-// Reading types. These indicate what kind of analog reading the Arduino is currently taking (if any).
-const uint8_t READING_TYPE_NONE     = B00000000; //0
-const uint8_t READING_TYPE_SINGLE   = B01000000; //64
-const uint8_t READING_TYPE_BATCH    = B10000000; //128
-const uint8_t READING_TYPE_IDENTIFY = B11000000; //192
-// Bitmask for getting what type of analog reading is currently being taken by the Arduino.
-// To get the reading type use `(CURRENT_READING_TYPE_BITMASK & statusFlags)`.
-const uint8_t CURRENT_READING_TYPE_BITMASK = B11000000;
-
-// Bitmask for getting whether there's an unhandled interrupt from the Arduino's Analog to Digital Converter (ADC).
-// To test if there's an unhandled interrupt use `(ADC_INTERRUPT_SIGNAL_BITMASK & statusFlags)`.
-const uint8_t ADC_INTERRUPT_SIGNAL_BITMASK = B00100000;
-// Bitmask for getting whether there's an unhandled interrupt from the Arduino's Timer1 (this means it's time to start
-// a new reading during batch readings).
-// To test if there's an unhandled interrupt use `(TIMER_INTERRUPT_SIGNAL_BITMASK & statusFlags)`.
-const uint8_t TIMER_INTERRUPT_SIGNAL_BITMASK = B00010000;
-
-#ifdef MCHECK_MODE
-// Bitmask for getting whether an ADC interrupt was skipped.
-// To test if one was skipped use `(ADC_INTERRUPT_MISSED_BITMASK & statusFlags)`.
-const uint8_t ADC_INTERRUPT_MISSED_BITMASK = B00001000;
-// Bitmask for getting whether an TIMER interrupt was skipped.
-// To test if one was skipped use `(TIMER_INTERRUPT_MISSED_BITMASK & statusFlags)`.
-const uint8_t TIMER_INTERRUPT_MISSED_BITMASK = B00000100;
-#endif
-
-
-// MUX (MUltipleXer) addresses for the Vernier interface ports. These are used to select which sensor port will be
-// connected to pins A4 and A5 on the Arduino (used for reading internal resistance and sensor identification).
-// The address is written to the Vernier interface via digital pins 10 and 11.
-const uint8_t MUX_PORT_ADDRESS_ANALOG_1  = B00000000; //0
-const uint8_t MUX_PORT_ADDRESS_ANALOG_2  = B00000100; //4
-const uint8_t MUX_PORT_ADDRESS_DIGITAL_1 = B00001000; //8
-const uint8_t MUX_PORT_ADDRESS_DIGITAL_2 = B00001100; //12
-// Bitmask for getting what port is currently connected to the Vernier interface's multiplexer (MUX).
-// To get what port is currently connected use `(MUX_ADDRESS_BITMASK & PORTD)`.
-const uint8_t MUX_ADDRESS_BITMASK = B00001100;
-
-
-// ADMUX (Analog to Digital MUltipleXer) addresses for the Arduino's analog pins.
-const uint8_t ADMUX_PIN_ADDRESS_A0 = B0000; //0
-const uint8_t ADMUX_PIN_ADDRESS_A1 = B0001; //1
-const uint8_t ADMUX_PIN_ADDRESS_A2 = B0010; //2
-const uint8_t ADMUX_PIN_ADDRESS_A3 = B0011; //3
-const uint8_t ADMUX_PIN_ADDRESS_A4 = B0100; //4
-const uint8_t ADMUX_PIN_ADDRESS_A5 = B0101; //5
-// Bitmask for getting what pin is currently connected to the Arduino's analog reader (the ADC). The pin's address
-// is stored in the Arduino's ADMUX register and can be retrieved with `(ADMUX_ADDRESS_BITMASK & ADMUX)`.
-const uint8_t ADMUX_ADDRESS_BITMASK = B00001111;
-
-
-
-
-//===== Global Variables =====//
-
-// Bitarray that stores which pins and ports are enabled and in use on the Aruindo and Vernier interface.
-uint8_t enabledFlags = B00000000;
-// Bitarray that stores the current mode of the digital pins the Vernier Interface uses (2,3,4,4,5,6,7,8,9).
-// 0 indicates output mode, and 1 indicates input mode. By default all pins are in input mode.
-uint8_t pinModeFlags = B11111111;
-// Bitarray that stores various settings and states of the program while it's running.
-volatile uint8_t statusFlags = B00000000;
-
-// Stores the period of time the Arduino waits between taking consecutive readings while taking batch readings.
-// The value is stored in nanoseconds, and by default this is set to 0.1 seconds.
-uint32_t samplePeriod = 100000000;
-// Stores the IDs of what sensor is connected to each port (0 indicates no sensor is connected).
-// The ID's are stored in the following order: `[ANALOG1, ANALOG2, DIGITAL1, DIGITAL1]`.
-uint8_t sensorIDs[4] = {0, 0, 0, 0}
-// Buffer for temporarily storing reading data before writing it to the client.
-uint8_t dataBuffer[DATA_BUFFER_SIZE];
-// Variable that stores the number of bytes currently stored in the data buffer.
-uint16_t dataBufferCounter = 0;
-
-#ifdef MAVERAGE_COUNT
-// Buffer for temporarily storing readings to be averaged together. The result is then written into the data buffer.
-uint8_t averagingBuffer[AVERAGE_COUNT * 6];
-// Variable that stores the number of bytes currently stored in the averaging buffer.
-uint16_t averagingBufferCounter = 0;
-#endif
-
-
-
-
-//===== Functions =====//
-// We forward declare all the functions so we can have them sorted logically instead of being sorted by need.
-debugLog(const uint8_t debugCode);
 
 
 /** Sends a timestamped log message to the client.
@@ -487,7 +263,7 @@ inline void completeReading()
         case(B00000000):
             debugLogDump(ERROR_EMPTY_READING_COMPLETED);
         break;
-        // An illega value was switched on, this should be impossible.
+        // An illegal value was switched on, this should be impossible.
         default:
             debugLogDumpWithStack(ILLEGAL_MEMORY_MODE, (const uint8_t[]){memoryMode}, 1);
         break;
@@ -1348,3 +1124,26 @@ void setup()
 }
 
 
+//==== LIMITATIONS AND CONCERNS ====//
+/**
+ Baud rates have to be between 0 and 2^32 (512 MBps)
+ Data buffer sizes have to be between 0 and 65536 (64KB)
+ Average count has to be between 0 and 256
+
+ Averages on digital sensors are 1 if the sensor was 1 at any point during any of the readings, and only 0 if it was always 0. This isn't a real average.
+ The average is taken between the start time and end time, not the average of every time-point used.
+
+ Digital Sensor 2 takes a little longer to read from than digital sensor 1.
+ Analog sensors are read in order one at a time, so higher address analog pins will be read after others if other pins are enabled.
+
+ There are 2 command codes still unused (13 and 15)
+ There are 2 bits unused in statusFlags (11111100)
+**/
+
+/**
+ Things to enforce later:
+    debugLogs must take 'DEBUG_'
+    debugLogDumps must take 'ERROR_'
+**/
+
+// TODO SO WHATS THE POINT OF THE DATA BUFFER NOW THEN?
