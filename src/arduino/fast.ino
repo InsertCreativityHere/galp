@@ -16,51 +16,64 @@
 
 
 
+    /** This function gets called in a loop by the Arduino during execution. It contains the main program logic for
+      * receiving data from the client and handling any readings/operations the Arduino is currently running. **/
     void loop()
     {
       #ifdef MDEBUG_MODE
         debugLog(INFO_START_LOOP);
       #endif
 
-        // First check for any unhandled interrupts.
-        checkADCInterrupt(); checkTIMER1Interrupt();
-
         // The behavior of the main loop depends on whether a reading is being taken, and what kind of reading it is.
-        switch(CURRENT_READING_TYPE_BITMASK & statusFlags)
+        switch(statusFlags & CURRENT_READING_TYPE_BITMASK)
         {
-            // Nothing is currently running.
+            // Nothing is currently running, so rescan the sensor ports for changes and flush the serial output.
             case(READING_TYPE_NONE):
-                processClientCommands();
-                // Rescan the Vernier ports and flush the serial output, since nothing time-critical is running.
                 scanSensors();
                 Serial.flush();
             break;
-            // The Arduino is scanning the Vernier ports for sensor changes.
+
+            // The Arduino is taking a single sensor reading, so only check for ADC interrupts (which indicate the
+            // Arduino has finished reading a single analog pin).
+            case(READING_TYPE_SINGLE):
+                checkADCInterrupt();
+            break;
+
+            // The Arduino is currently in the middle of a batch reading, so we check for ADC and TIMER1 interrupts.
+            case(READING_TYPE_BATCH_WAITING): case(READING_TYPE_BATCH_RUNNING)
+                checkADCInterrupt();
+                checkTIMER1Interrupt();
+            break;
+
+            // The Arduino is currently in the middle of a poll reading, so it only polls the digital pins.
+            case(READING_TYPE_POLLING):
+              pollDigitalPins();
+            break;
+
+            // The Vernier interface ports are being rescanned, this isn't time-sensative so flush the serial output.
             case(READING_TYPE_IDENTIFY):
-                processClientCommands();
-                // Flush any leftover serial output, since nothing time-critical is running.
                 Serial.flush();
             break;
-            // The Arduino is taking a sensor reading.
-            case(READING_TYPE_SINGLE): case(READING_TYPE_BATCH):
-                processClientCommands();
-            break;
+
           #ifdef MCHECK_MODE
             default:
                 debugDump(ERROR_ILLEGAL_READING_TYPE_loop);
             break;
           #endif
         }
+
+        // Process the next client command that was sent, if any.
+        processClientCommands();
     }
 
 
 
-    /** Interrupt service routine that gets called by the timer at the end of every sample period. **/
+    /** Interrupt service routine that gets called by TIMER1 at the end of every sample period during batch readings. **/
     ISR(TIMER1_COMPA_vect)
     {
       #ifdef MCHECK_MODE
         // Set the TIMER_INTERRUPT_MISSED flag if the previous timer interrupt still hasn't been handled.
-        if(TIMER_INTERRUPT_SIGNAL_BITMASK & statusFlags)
+        if(statusFlags & TIMER_INTERRUPT_SIGNAL_BITMASK)
         {
             statusFlags |= TIMER_INTERRUPT_MISSED_BITMASK
         }
@@ -71,11 +84,11 @@
 
 
 
-    /** Interrupt service routine that gets called by the ADC when a reading has been finished. **/
+    /** Interrupt service routine that gets called by the ADC when an analog pin reading has been finished. **/
     ISR(ANALOG_COMP_vect)
     {
         // Set the ADC_INTERRUPT_MISSED flag if the previous ADC interrupt still hasn't been handled.
-        if(ADC_INTERRUPT_SIGNAL_BITMASK & statusFlags)
+        if(statusFlags & ADC_INTERRUPT_SIGNAL_BITMASK)
         {
             statusFlags |= ADC_INTERRUPT_MISSED_BITMASK;
         }
@@ -91,7 +104,7 @@
         debugLog(INFO_START_processClientCommands);
       #endif
 
-        // Return immediately if there's no commands to process.
+        // If there's no commands to process, do nothing.
         if(!Serial.available())
         {
           #ifdef MDEBUG_MODE
@@ -101,7 +114,14 @@
         }
 
         const uint8_t command = Serial.read();
-        // If the first byte read isn't a command byte from the Arduino, report an error and enter serial panic mode.
+        // If the first byte read is about the serial connection, handle it separately from the normal command logic.
+        if((command & COMMAND_SOURCE_BITMASK) == COMMAND_SOURCE_SERIAL)
+        {
+            //TODO!!!
+            return;
+        }
+
+        // If the first byte isn't a command byte from the Arduino, report an error and enter serial panic mode.
         if((command & COMMAND_SOURCE_BITMASK) != COMMAND_SOURCE_CLIENT)
         {
             debugDumpWithStack(ERROR_ILLEGAL_COMMAND_SOURCE_processClientCommands, (const uint8_t[]){command}, 1);
@@ -120,13 +140,14 @@
             case(COMMAND_GET_APIN_STATES):     getAnalogPinStates(); break;
             case(COMMAND_SET_DPIN_MODES):      setDigitalPinModes();
             case(COMMAND_GET_DPIN_MODES):      getDigitalPinModes(); break;
-            case(COMMAND_SET_SENSOR_IDS):      setSensorID();
+            case(COMMAND_SET_SENSOR_ID):       setSensorID();
             case(COMMAND_GET_SENSOR_IDS):      getSensorIDs(); break;
-            case(COMMAND_TAKE_READING):        takeSingleReading(); break;
+            case(COMMAND_TAKE_SINGLE_READING): takeSingleReading(); break;
             case(COMMAND_START_BATCH_READING): startBatchReading(); break;
-            case(COMMAND_STOP_BATCH_READING):  stopBatchReading(); break;
+            case(COMMAND_START_POLL_READING):  startPollReading(); break;
             case(COMMAND_SCAN_SENSORS):        scanSensors(); break;
-            case(COMMAND_READY):
+            case(COMMAND_STOP_READING):        stopReading(); break;
+
           #ifdef MCHECK_MODE
             case(COMMAND_DEBUG_LOG):
                 debugDumpWithStack(ERROR_DEBUG_LOG_processClientCommands, (const uint8_t[]){command}, 1); break;
@@ -188,7 +209,7 @@
         // Periods less than 16 clock cycles aren't supposed for stability reasons.
         if(requestedPeriod < 16)
         {
-            debugDumpWithStack(ERROR_UNSTABLE_SAMPLE_PERIOD_setSamplePeriod, data, 4);
+            debugLogWithStack(ERROR_UNSTABLE_SAMPLE_PERIOD_setSamplePeriod, data, 4);
             return;
         }
 
@@ -431,17 +452,17 @@
 
       #ifdef MCHECK_MODE
         // If there's already a reading in progress, report an error and do nothing.
-        const uint8_t currentReadingType = CURRENT_READING_TYPE_BITMASK & statusflags;
+        const uint8_t currentReadingType = statusflags & CURRENT_READING_TYPE_BITMASK;
         if(currentReadingType != READING_TYPE_NONE)
         {
-            debugDumpWithStack(ERROR_ALREADY_READING_takeSingleReading, (const uint8_t[]){currentReadingType}, 1);
+            debugLogWithStack(ERROR_ALREADY_READING_takeSingleReading, (const uint8_t[]){currentReadingType}, 1);
             return;
         }
       #endif
 
-      // Set that a non-batch sensor reading is running and manually start the actual reading.
-      statusFlags |= READING_TYPE_SINGLE;
-      startNewSensorReading();
+        // Set that a single sensor reading is running and immediately start a sensor reading.
+        statusFlags |= READING_TYPE_SINGLE;
+        startNewSensorReading();
 
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_takeSingleReading);
@@ -458,19 +479,19 @@
 
       #ifdef MCHECK_MODE
         // If there's already a reading in progress, report an error and do nothing.
-        const uint8_t currentReadingType = CURRENT_READING_TYPE_BITMASK & statusflags;
+        const uint8_t currentReadingType = statusflags & CURRENT_READING_TYPE_BITMASK;
         if(currentReadingType != READING_TYPE_NONE)
         {
-            debugDumpWithStack(ERROR_ALREADY_READING_startBatchReading, (const uint8_t[]){currentReadingType}, 1);
+            debugLogWithStack(ERROR_ALREADY_READING_startBatchReading, (const uint8_t[]){currentReadingType}, 1);
             return;
         }
       #endif
 
         // Set that a batch reading is running and start TIMER1 to schedule and automatically start sensor readings.
-        statusFlags |= READING_TYPE_BATCH;
+        statusFlags |= READING_TYPE_BATCH_WAITING;
         // Restart TIMER1 at 0.
         TCNT1 = 0;
-        // Enable the TIMER1 COMPA interrupt routine.
+        // Enable the TIMER1 interrupt routine that runs when TIMER1 matches the OCR1A register.
         TIMSK1 = (1 << OCIE1A);
 
       #ifdef MDEBUG_MODE
@@ -480,29 +501,32 @@
 
 
 
-    inline void stopBatchReading()
+    inline void startPollReading()
     {
       #ifdef MDEBUG_MODE
-        debugLog(INFO_START_stopBatchReading);
+        debugLog(INFO_START_startPollReading);
       #endif
 
+        // Read the reference values to compare the digital pins against while polling.
+        uint8_t referenceValues[1];
+        readSerialBytes(referenceValues, 1);
+
       #ifdef MCHECK_MODE
-        // If there isn't a batch reading to stop, report an error and do nothing.
-        const uint8_t currentReadingType = CURRENT_READING_TYPE_BITMASK & statusflags;
-        if(currentReadingType != READING_TYPE_BATCH)
+        // If there's already a reading in progress, report an error and do nothing.
+        const uint8_t currentReadingType = statusflags & CURRENT_READING_TYPE_BITMASK;
+        if(currentReadingType != READING_TYPE_NONE)
         {
-            debugDumpWithStack(ERROR_NO_BATCH_READING_stopBatchReading, (const uint8_t[]){currentReadingType}, 1);
+            debugLogWithStack(ERROR_ALREADY_READING_startPollReading, (const uint8_t[]){currentReadingType}, 1);
             return;
         }
       #endif
 
-        // Set that there's no reading running and disable the TIMER1 COMPA interrupt routine.
-        // Any readings that are currently being taken will still finish and be sent to the client like normal.
-        statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
-        TIMSK1 = B00000000;
+        // Store the specified reference values, and set that a poll reading is running.
+        pollReferenceValues = referenceValues;
+        statusFlags |= READING_TYPE_POLLING;
 
       #ifdef MDEBUG_MODE
-        debugLog(INFO_END_stopBatchReading);
+        debugLog(INFO_END_startPollReading);
       #endif
     }
 
@@ -514,8 +538,71 @@
         debugLog(INFO_START_scanSensors);
       #endif
 
+      #ifdef MCHECK_MODE
+        // If there's already a reading in progress, report an error and do nothing.
+        const uint8_t currentReadingType = statusflags & CURRENT_READING_TYPE_BITMASK;
+        if(currentReadingType != READING_TYPE_NONE)
+        {
+            debugDumpWithStack(ERROR_ALREADY_READING_scanSensors, (const uint8_t[]){currentReadingType}, 1);
+            return;
+        }
+      #endif
+
+        // Set that a sensor ID scan is running.
+        statusFlags |= READING_TYPE_IDENTIFY;
+
+        // Start by reading the sensor connected to analog port 1 on the Vernier interface.
+        // Set the Vernier interface's MUX address to 0 by clearing it (0 represents analog port 1).
+        PORTD &= ~MUX_ADDRESS_BITMASK;
+        // Start a reading on analog pin A5 (it's shared between all ports and used to read ID voltages from sensors).
+        startAnalogReading(ADMUX_PIN_ADDRESS_A5);
+
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_scanSensors);
+      #endif
+    }
+
+
+
+    inline void stopReading()
+    {
+      #ifdef MDEBUG_MODE
+        debugLog(INFO_START_stopReading);
+      #endif
+
+        // Switch on the type of reading currently in progress.
+        switch(statusflags & CURRENT_READING_TYPE_BITMASK)
+        {
+            case(READING_TYPE_BATCH_WAITING): case(READING_TYPE_BATCH_RUNNING)
+                // Stop TIMER1 and it's interrupts.
+                TIMSK1 = B00000000;
+                // Note that there is no `break` here; this continues to the next case and sets the stop reading flag.
+
+            case(READING_TYPE_SINGLE): case(READING_TYPE_IDENTIFY):
+                // Set a flag indicating the reading should stop itself when next possible.
+                statusFlags |= STOP_CURRENT_READING_BITMASK;
+            break;
+            
+            case(READING_TYPE_POLLING):
+                // Set the reading type to none. No additional steps are necessary to stop polling mode.
+                // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
+                statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
+            break;
+
+          #ifdef MCHECK_MODE
+            case(READING_TYPE_NONE):
+                // If there's no reading to stop, report an error.
+                debugDump(ERROR_NO_READING_stopBatchReading);
+            break;
+
+            default:
+                debugDumpWithStack(ERROR_ILLEGAL_READING_stopReading, (const uint8_t[]){currentReadingType}, 1);
+            break;
+          #endif
+        }
+
+      #ifdef MDEBUG_MODE
+        debugLog(INFO_END_stopReading);
       #endif
     }
 
@@ -527,6 +614,8 @@
         debugLogWithStack(INFO_START_configureSensorPins, (const uint8_t[]){address, sensorID}, 2);
       #endif
 
+      // TODO
+
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_configureSensorPins);
       #endif
@@ -536,16 +625,54 @@
 
     inline void checkTIMER1Interrupt()
     {
-      #ifdef MDEBUG_MODE
-        debugLog(INFO_NONE_checkTIMER1Interrupt);
+        // If an interrupt was skipped and left unhandled, report an error, and ignore it. There's nothing we can do.
+        if(statusFlags & TIMER_INTERRUPT_MISSED_BITMASK)
+        {
+            debugDump(ERROR_INTERRUPT_SKIPPED_checkTIMER1Interrupt);
+            // Clear the missed-interrupt flag.
+            statusFlags &= ~TIMER_INTERRUPT_MISSED_BITMASK;
+            return;
+        }
+
+      #ifdef MCHECK_MODE
+        const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+        // If the Arduino is supposed to be taking another kind of reading, report an error, and do nothing.
+        if((currentReadingType != READING_TYPE_BATCH_WAITING) && (currentReadingType != READING_TYPE_BATCH_RUNNING))
+        {
+            debugDumpWithStack(ERROR_INVALID_READING_checkTIMER1Interrupt, (const uint8_t[]){currentReadingType}, 1);
+        }
       #endif
 
-      #ifdef MDEBUG_MODE
-        debugLog(INFO_START_checkTIMER1Interrupt);
-      #endif
+        // If there's a TIMER1 interrupt to handle, handle it.
+        if(statusFlags & TIMER_INTERRUPT_SIGNAL_BITMASK)
+        {
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_START_checkTIMER1Interrupt);
+          #endif
 
+            // If the last reading is still in progress, report an error, and skip the reading this was supposed to
+            // start. Otherwise start a new sensor reading like normal.
+            if(currentReadingType == READING_TYPE_BATCH_RUNNING)
+            {
+                debugLog(ERROR_ALREADY_READING_checkTIMER1Interrupt);
+            } else {
+                // Change the batch reading type from WAITING to RUNNING, and start a new reading.
+                // Setting the new reading type without clearing the old only works here as a micro-optimization.
+                // Yeah, yeah. You call it 'the root of all evil', I call it efficient code, whatever.
+                currentReadingType |= READING_TYPE_BATCH_RUNNING;
+                startNewSensorReading();
+            }
+            // Clear the TIMER1 interrupt flag now that it's been handled.
+            statusFlags &= ~TIMER_INTERRUPT_SIGNAL_BITMASK;
+
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_END_checkTIMER1Interrupt);
+          #endif
+        }
       #ifdef MDEBUG_MODE
-        debugLog(INFO_END_checkTIMER1Interrupt);
+        else {
+            debugLog(INFO_NONE_checkTIMER1Interrupt);
+        }
       #endif
     }
 
@@ -553,26 +680,116 @@
 
     inline void checkADCInterrupt()
     {
-      #ifdef MDEBUG_MODE
-        debugLog(INFO_NONE_checkADCInterrupt);
+      #ifdef MCHECK_MODE
+        // If an interrupt was skipped and left unhandled, report an error. This shouldn't ever happen however, since
+        // functions check that there's nothing currently running before running a new reading, and the only other
+        // place we start analog readings is after handling the last analog reading in this function.
+        if(statusFlags & ADC_INTERRUPT_MISSED_BITMASK)
+        {
+            debugDump(ERROR_INTERRUPT_SKIPPED_checkADCInterrupt);
+            // Clear the missed-interrupt flag.
+            statusFlags &= ~ADC_INTERRUPT_MISSED_BITMASK;
+        }
       #endif
 
-      #ifdef MDEBUG_MODE
-        debugLog(INFO_START_checkADCInterrupt);
-      #endif
+        // If there's an ADC interrupt to handle, handle it.
+        if(statusFlags & ADC_INTERRUPT_SIGNAL_BITMASK)
+        {
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_START_checkADCInterrupt);
+          #endif
 
+            // Switch on the current type of reading the Arduino is taking.
+            const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+            switch(currentReadingType)
+            {
+                case(READING_TYPE_SINGLE): case(READING_TYPE_BATCH):
+                    handleAnalogSensorValueReading();
+                break;
+
+                case(READING_TYPE_IDENTIFY):
+                    handleAnalogSensorIDReading();
+                break;
+
+              #ifdef MCHECK_MODE
+                case(READING_TYPE_NONE):
+                    debugDumpWithStack(ERROR_NO_READING_checkADCInterrupt);
+                break;
+
+                default:
+                    debugDumpWithStack(ERROR_INVALID_READING_checkADCInterrupt, (const uint8_t[]){readingType}, 1);
+                break;
+              #endif
+            }
+            // Clear the ADC interrupt flag now that it's been handled.
+            statusFlags &= ~ADC_INTERRUPT_SIGNAL_BITMASK;
+
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_END_checkADCInterrupt);
+          #endif
+        }
       #ifdef MDEBUG_MODE
-        debugLog(INFO_END_checkADCInterrupt);
+        else {
+            debugLog(INFO_NONE_checkADCInterrupt);
+        }
       #endif
     }
 
+============================================================================================================================================================
 
-
-    inline void handleAnalogSensorValueReading(const uint8_t address)
+    inline void handleAnalogSensorValueReading()
     {
       #ifdef MDEBUG_MODE
-        debugLogWithStack(INFO_START_handleAnalogSensorValueReading, (const uint8_t[]){address}, 1);
+        debugLog(INFO_START_handleAnalogSensorValueReading);
       #endif
+
+        // If this reading was canceled, then complete the reading immediately and return.
+        if(statusFlags & STOP_CURRENT_READING_BITMASK)
+        {
+            completeSensorReading();
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_END_handleAnalogSensorValueReading);
+          #endif
+            return;
+        }
+
+        const uint8_t address = ADMUX & ADMUX_ADDRESS_BITMASK;
+      #ifdef MCHECK_MODE
+        // If the reading isn't being taken on a pin connected to the sensors (A0,A1,A2,A3), report an error.
+        if(address > ADMUX_PIN_ADDRESS_A3)
+        {
+            debugDumpWithStack(ERROR_INVALID_ADDRESS_handleAnalogSensorValueReading, (const uint8_t[]){address}, 1);
+        }
+        // If the reading was taken on a disabled pin, report an error.
+        if(!(enabledFlags & (1 << (address + 4))))
+        {
+            debugDumpWithStack(ERROR_DISABLED_ADDRESS_handleAnalogSensorValueReading, (const uint8_t[]){address}, 1);
+        }
+        // If the Arduino isn't currently taking a sensor reading, report an error.
+        const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+        if((readingType != READING_TYPE_SINGLE) && (readingType != READING_TYPE_BATCH_RUNNING))
+        {
+
+        }
+      #endif
+
+
+
+
+
+
+
+
+      const uint8_t address = ADMUX & ADMUX_ADDRESS_BITMASK;
+      #ifdef MCHECK_MODE
+        // If the reading wasn't taken from pin A0,A1,A2,A3 it can't be a sensor value reading, so report an error.
+        if(address > ADMUX_PIN_ADDRESS_A3)
+        {
+            debugDumpWithStack(ERROR_INVALID_ADDRESS_handleAnalogSensorValueReading, (const uint8_t[]){address}, 1);
+        }
+      #endif
+
+
 
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_handleAnalogSensorValueReading);
@@ -587,18 +804,227 @@
         debugLog(INFO_START_handleAnalogSensorIDReading);
       #endif
 
+        // If this reading was canceled, then cancel the sensor scan and return immediately.
+        if(statusFlags & STOP_CURRENT_READING_BITMASK)
+        {
+            // Stop any analog readings, and reset the current reading type to NONE.
+            stopAnalogReadings();
+          #ifdef MDEBUG_MODE
+            debugLog(INFO_END_handleAnalogSensorValueReading);
+          #endif
+            return;
+        }
+
+
+
+
+
+
+
+
+
+      #ifdef MCHECK_MODE
+        // If the reading wasn't taken from pin A5, report an error. This is the only pin used for sensor ID readings.
+        const uint8_t address = ADMUX & ADMUX_ADDRESS_BITMASK;
+        if(address != ADMUX_PIN_ADDRESS_A5)
+        {
+            debugDumpWithStack(ERROR_INVALID_ADDRESS_handleAnalogSensorIDReading, (const uint8_t[]){address}, 1);
+        }
+      #endif
+
+        const uint8_t portAddress = PORTD & MUX_ADDRESS_BITMASK;
+      #ifdef MCHECK_MODE
+        // If the port address is invalid, report an error and stop the sensor scan.
+        if((portAddress != MUX_PORT_ADDRESS_ANALOG_1)  &&
+           (portAddress != MUX_PORT_ADDRESS_ANALOG_2)  &&
+           (portAddress != MUX_PORT_ADDRESS_DIGITAL_1) &&
+           (portAddress != MUX_PORT_ADDRESS_DIGITAL_2))
+        {
+            debugDumpWithStack(ERROR_ILLEGAL_PORT_ADDRESS_handleAnalogSensorIDReading, (const uint8_t[]){portAddress}, 1);
+            // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
+            statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
+            stopAnalogReadings();
+            return;
+        }
+      #endif
+
+        // Get the voltage read from the ADC. Every sensor has a unique resistance, and hence voltage, so we can use
+        // this value to determine what type of sensor is connected.
+        const uint16_t idVoltage = (uint16_t)ADCL | (uint16_t)(ADCH & B00000011);
+
+        uint8_t sensorID;
+        if((88 < idVoltage) && (idVoltage < 98)) // 0.43 < idV < 0.48
+        {
+            sensorID = SENSOR_EXERCISE_HEART_RATE_MONITOR;
+        } else
+        if((127 < idVoltage) && (idVoltage < 139)) // 0.62 < idV < 0.68
+        {
+            sensorID = SENSOR_EKG_SENSOR;
+        } else
+        if((176 < idVoltage) && (idVoltage < 195)) // 0.86 < idV < 0.95
+        {
+            sensorID = SENSOR_THERMOCOUPLE;
+        } else
+        if((241 < idVoltage) && (idVoltage < 266)) // 1.18 < idV < 1.30
+        {
+            // Resistance(4) 
+            sensorID = 127;//TODO
+        } else
+        if((311 < idVoltage) && (idVoltage < 344)) // 1.52 < idV < 1.68
+        {
+            sensorID = SENSOR_TI_LIGHT_PROBE;
+        } else
+        if((393 < idVoltage) && (idVoltage < 436)) // 1.92 < idV < 2.13
+        {
+            sensorID = SENSOR_CURRENT_PROBE;
+        } else
+        if((487 < idVoltage) && (idVoltage < 539)) // 2.38 < idV < 2.63
+        {
+            sensorID = SENSOR_STAINLESS_STEEL_TEMPERATURE_PROBE;
+        } else
+        if((584 < idVoltage) && (idVoltage < 645)) // 2.85 < idV < 3.15
+        {
+            sensorID = SENSOR_30-VOLT_VOLTAGE_PROBE;
+        } else
+        if((670 < idVoltage) && (idVoltage < 754)) // 3.27 < idV < 3.68
+        {
+            sensorID = SENSOR_EXTRA_LONG_TEMPERATURE_PROBE;
+        } else
+        if((762 < idVoltage) && (idVoltage < 791)) // 3.72 < idV < 3.86
+        {
+            // Voltage +/-10v(2) 
+            sensorID = 127;//TODO
+        } else
+        if((836 < idVoltage) && (idVoltage < 852)) // 4.08 < idV < 4.16
+        {
+            // Raw voltage(14) 
+            sensorID = 127;//TODO
+        } else
+        if((885 < idVoltage) && (idVoltage < 901)) // 4.32 < idV < 4.40
+        {
+            sensorID = SENSOR_CO2_GAS_SENSOR;
+        } else
+        if((922 < idVoltage) && (idVoltage < 940)) // 4.50 < idV < 4.59
+        {
+            sensorID = SENSOR_O2_GAS_SENSOR;
+        } else
+        if((950 < idVoltage) && (idVoltage < 969)) // 4.64 < idV < 4.73
+        {
+            sensorID = SENSOR_DIFFERENTIAL_VOLTAGE_PROBE;
+        } else
+        if((969 < idVoltage) && (idVoltage < 987)) // 4.73 < idV < 4.82
+        {
+            // Current(9) 
+            sensorID = 127;//TODO
+        } else {
+            // Try and identify the sensor using I2C Wire communication.
+            //TODO
+        }
+
+        // Update the sensorID if it changed.
+        if(sensorIDs[portAddress] != sensorID)
+        {
+            sensorIDs[portAddress] = sensorID;
+            // Notify the client of the new sensorID and the port it's connected to.
+            writeSerialBytes((const uint8_t[]){
+                (COMMAND_SOURCE_ARDUINO | COMMAND_SET_SENSOR_ID),
+                portAddress,
+                sensorID
+            }, 3);
+        }
+
+        // If this was port DIGITAL2 (the last port), set the current reading type to none and disable analog readings.
+        if(address == MUX_PORT_ADDRESS_DIGITAL_2)
+        {
+            // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
+            statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
+            stopAnalogReadings();
+        }
+
+
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_handleAnalogSensorIDReading);
       #endif
     }
 
-
+======================================================================================================================================================
 
     inline void startNewSensorReading()
     {
       #ifdef MDEBUG_MODE
         debugLog(INFO_START_startNewSensorReading);
       #endif
+
+      #ifdef MCHECK_MODE
+        // If the Arduino isn't currently taking a single or batch reading, report an error, and skip the reading.
+        const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+        if((currentReadingType != READING_TYPE_SINGLE) && (currentReadingType != READING_TYPE_BATCH_RUNNING))
+        {
+            debugDumpWithStack(ERROR_INVALID_READING_startNewSensorReading, (const uint8_t[]){currentReadingType}, 1);
+            return;
+        }
+
+        // If the data buffer isn't at position 0, report an error; There's still data left in it to write.
+        if(dataBufferCounter != 0)
+        {
+            debugDumpWithStack(ERROR_UNHANDLED_DATA_startNewSensorReading, (const uint8_t[]){dataBufferCounter}, 1);
+        }
+      #endif
+
+      // Select the appropiate buffer and position variables to store the sensor reading in.
+      #ifdef MAVERAGE_COUNT
+        uint8_t* buffer = dataBuffer;
+        const uint8_t pos = dataBufferCounter + 4; //The first 4 bytes contain the timestamp, and so are skipped.
+      #else
+        uint8_t* buffer = averagingBuffer;
+        const uint8_t pos = averagingBufferCounter;
+      #endif
+
+        // Clear the next 6 bytes in the buffer (the maximum amount of space a reading can take). We always clear the
+        // max to protect against corruption in the case the client changes pin states in the middle of a reading.
+        buffer[pos] = 0; buffer[pos+1] = 0; buffer[pos+2] = 0; buffer[pos+3] = 0; buffer[pos+4] = 0; buffer[pos+5] = 0;
+
+        // Store the time that the reading was started at in the data buffer.
+        const uint32_t time = micros();
+        dataBuffer[dataBufferCounter]   = (time >> 24) & 0xff;
+        dataBuffer[dataBufferCounter+1] = (time >> 16) & 0xff;
+        dataBuffer[dataBufferCounter+2] = (time >> 8)  & 0xff;
+        dataBuffer[dataBufferCounter+3] = time         & 0xff;
+        // Increment the data buffer counter by 4 for the timestamp that was just written into it.
+        dataBufferCounter += 4;
+
+        // Record the values of any digital pins that are enabled and in input mode.
+        if(enabledFlags & PORT_DIGITAL_1_ENABLED_BITMASK)
+        {
+            // Store the values of pins 2,3,4,5.
+            buffer[pos] = ((PORTB & B00111100) >> 2) & pinModeFlags;
+        }
+        if(enabledFlags & PORT_DIGITAL_2_ENABLED_BITMASK)
+        {
+            // Store the values of pins 6,7,8,9.
+            buffer[pos] |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6) & pinModeFlags;
+        }
+
+        // Start a reading on the lowest address analog pin that's enabled (If any of them are enabled).
+        if(enabledFlags & PIN_A0_ENABLED_BITMASK)
+        {
+            startAnalogReading(ADMUX_PIN_ADDRESS_A0);
+        } else
+        if(enabledFlags & PIN_A1_ENABLED_BITMASK)
+        {
+            startAnalogReading(ADMUX_PIN_ADDRESS_A1);
+        } else
+        if(enabledFlags & PIN_A2_ENABLED_BITMASK)
+        {
+            startAnalogReading(ADMUX_PIN_ADDRESS_A2);
+        } else
+        if(enabledFlags & PIN_A3_ENABLED_BITMASK)
+        {
+            startAnalogReading(ADMUX_PIN_ADDRESS_A3);
+        } else {
+            // Complete the reading if there's no analog pins to take readings from.
+            completeSensorReading();
+        }
 
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_startNewSensorReading);
@@ -613,8 +1039,253 @@
         debugLog(INFO_START_completeSensorReading);
       #endif
 
+        const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+      #ifdef MCHECK_MODE
+        // If the Arduino wasn't taking a single or batch sensor reading, report an error.
+        if((readingType != READING_TYPE_SINGLE) && (readingType != READING_TYPE_BATCH_RUNNING))
+        {
+            debugDumpWithStack(ERROR_INVALID_READING_completeSensorReading, (const uint8_t[]){readingType}, 1);
+        }
+      #endif
+
+        // Only process the results if the current reading wasn't canceled.
+        if(!(statusFlags & STOP_CURRENT_READING_BITMASK))
+        {
+          #ifdef MAVERAGE_COUNT
+            const uint8_t readingCount = (averagingBufferCounter / 6) + 1;
+          #ifdef MCHECK_MODE
+            // If more than `AVERAGE_COUNT` many readings were taken, report an error, and ignore the extra readings.
+            if(readingCount > AVERAGE_COUNT)
+            {
+                debugDumpWithStack(ERROR_TOO_MANY_READINGS_completeSensorReading, (const uint8_t[]){readingCount}, 1);
+                readingCount = AVERAGE_COUNT;
+            }
+          #endif
+            // If enough readings have been taken to average together into a real reading, compute the average.
+            if(readingCount == AVERAGE_COUNT)
+            {
+                // Compute the average time by averaging the start and end times of the reading.
+                uint32_t time = micros();
+                const uint32_t startTime = ((uint32_t)dataBuffer[dataBufferCounter-4] << 24) |
+                                           ((uint32_t)dataBuffer[dataBufferCounter-3] << 16) |
+                                           ((uint32_t)dataBuffer[dataBufferCounter-2] <<  8) |
+                                            (uint32_t)dataBuffer[dataBufferCounter-1];
+                // Divides both times by 2 and adds them together. This is the average time.
+                time = (time >> 1) + (startTime >> 1);
+
+                // TODO take the average here
+            } else {
+                // If there aren't enough readings to average, then shift the counter forward by a reading and return.
+                averagingBufferCounter += 6;
+              #ifdef MDEBUG_MODE
+                debugLog(INFO_END_completeSensorReading);
+              #endif
+                return;
+            }
+          #endif
+
+            // Send the data taken during the reading to the client.
+            const uint8_t memoryMode = enabledFlags & APIN_ALL_ENABLED_BITMASK;
+            switch(memoryMode)
+            {
+                // If there aren't any analog pins enabled, readings take up 5 bytes.
+                case(B00000000):
+                  #ifdef MCHECK_MODE
+                    if(dataBufferCounter != 5)
+                    {
+                        debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
+                                           (const uint8_t[]){dataBufferCounter, memoryMode}, 2);
+                        break;
+                    }
+                  #endif
+                    writeSerialBytes((const uint8_t[]){
+                        (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                        dataBuffer[dataBufferCounter-5],
+                        dataBuffer[dataBufferCounter-4],
+                        dataBuffer[dataBufferCounter-3],
+                        dataBuffer[dataBufferCounter-2],
+                        dataBuffer[dataBufferCounter-1],
+                    });
+                break;
+
+                // If there's 1 pin enabled, readings take up 7 bytes.
+                case(B00010000): case(B00100000): case(B01000000): case(B10000000):
+                  #ifdef MCHECK_MODE
+                    if(dataBufferCounter != 7)
+                    {
+                        debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
+                                           (const uint8_t[]){dataBufferCounter, memoryMode}, 2);
+                        break;
+                    }
+                  #endif
+                    writeSerialBytes((const uint8_t[]){
+                        (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                        dataBuffer[dataBufferCounter-7],
+                        dataBuffer[dataBufferCounter-6],
+                        dataBuffer[dataBufferCounter-5],
+                        dataBuffer[dataBufferCounter-4],
+                        dataBuffer[dataBufferCounter-3],
+                        dataBuffer[dataBufferCounter-2],
+                        dataBuffer[dataBufferCounter-1],
+                    });
+                break;
+
+                // If there's 2 pins enabled, readings take up 8 bytes.
+                case(B00110000): case(B01010000): case(B10010000): case(B01100000): case(B10100000): case(B11000000):
+                  #ifdef MCHECK_MODE
+                    if(dataBufferCounter != 8)
+                    {
+                        debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
+                                           (const uint8_t[]){dataBufferCounter, memoryMode}, 2);
+                        break;
+                    }
+                  #endif
+                    writeSerialBytes((const uint8_t[]){
+                        (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                        dataBuffer[dataBufferCounter-8],
+                        dataBuffer[dataBufferCounter-7],
+                        dataBuffer[dataBufferCounter-6],
+                        dataBuffer[dataBufferCounter-5],
+                        dataBuffer[dataBufferCounter-4],
+                        dataBuffer[dataBufferCounter-3],
+                        dataBuffer[dataBufferCounter-2],
+                        dataBuffer[dataBufferCounter-1],
+                    });
+                break;
+
+                // If there's 3 pins enabled, readings take up 9 bytes.
+                case(B01110000): case(B10110000): case(B11010000): case(B11100000):
+                  #ifdef MCHECK_MODE
+                    if(dataBufferCounter != 9)
+                    {
+                        debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
+                                           (const uint8_t[]){dataBufferCounter, memoryMode}, 2);
+                        break;
+                    }
+                  #endif
+                    writeSerialBytes((const uint8_t[]){
+                        (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                        dataBuffer[dataBufferCounter-9],
+                        dataBuffer[dataBufferCounter-8],
+                        dataBuffer[dataBufferCounter-7],
+                        dataBuffer[dataBufferCounter-6],
+                        dataBuffer[dataBufferCounter-5],
+                        dataBuffer[dataBufferCounter-4],
+                        dataBuffer[dataBufferCounter-3],
+                        dataBuffer[dataBufferCounter-2],
+                        dataBuffer[dataBufferCounter-1],
+                    });
+                break;
+
+                // If there's 4 pins enabled, readings take up 10 bytes.
+                case(B11110000):
+                  #ifdef MCHECK_MODE
+                    if(dataBufferCounter != 10)
+                    {
+                        debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
+                                           (const uint8_t[]){dataBufferCounter, memoryMode}, 2);
+                        break;
+                    }
+                  #endif
+                    writeSerialBytes((const uint8_t[]){
+                        (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                        dataBuffer[dataBufferCounter-10],
+                        dataBuffer[dataBufferCounter-9],
+                        dataBuffer[dataBufferCounter-8],
+                        dataBuffer[dataBufferCounter-7],
+                        dataBuffer[dataBufferCounter-6],
+                        dataBuffer[dataBufferCounter-5],
+                        dataBuffer[dataBufferCounter-4],
+                        dataBuffer[dataBufferCounter-3],
+                        dataBuffer[dataBufferCounter-2],
+                        dataBuffer[dataBufferCounter-1],
+                    });
+                break;
+
+              #ifdef MCHECK_MODE
+                // An illegal memory mode was switched on, report an error.
+                default:
+                    debugDumpWithStack(ERROR_ILLEGAL_MEMORY_MODE_completeSensorReading,
+                                       (const uint8_t[]{memoryMode}, 1));
+                break;
+              #endif
+            }
+        } else {
+            // If the Arduino was running a batch reading that got canceled, set the current reading type to none.
+            if(readingType == READING_TYPE_BATCH_RUNNING)
+            {
+                // Stop any analog readings, and reset the current reading type to NONE.
+                stopAnalogReadings();
+            }
+            // Clear the stop-reading flag
+            statusFlags &= ~STOP_CURRENT_READING_BITMASK;
+        }
+
+        // If the Arduino was only taking a single reading, set the reading type to none since it's been taken.
+        if(readingType == READING_TYPE_SINGLE)
+        {
+            // Stop any analog readings, and reset the current reading type to NONE.
+            stopAnalogReadings();
+        } else
+        // If the Arduino is in batch reading mode.
+        if(readingType == READING_TYPE_BATCH_RUNNING)
+        {
+            // Set that the Arduino is still in batch reading mode, but waiting to take the next reading.
+            statusFlags = (statusFlags & ~CURRENT_READING_TYPE_BITMASK) | READING_TYPE_BATCH_WAITING;
+        }
+
+        // Reset the buffer positions for the next reading.
+        dataBufferCounter = 0;
+      #ifdef MAVERAGE_COUNT
+        averagingBufferCounter = 0;
+      #endif
+
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_completeSensorReading);
+      #endif
+    }
+
+
+
+    inline void pollDigitalPins()
+    {
+      #ifdef MDEBUG_MODE
+        debugLog(INFO_START_pollDigitalPins);
+      #endif
+
+      #ifdef MCHECK_MODE
+        // If the Arduino isn't currently taking a poll reading, report an error.
+        const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+        if(currentReadingType != READING_TYPE_POLLING)
+        {
+            debugDumpWithStack(ERROR_INVALID_READING_pollDigitalPins, (const uint8_t[]){currentReadingType}, 1);
+        }
+      #endif
+
+        // Read the current states of the enabled digital pins.
+        if(enabledFlags & PORT_DIGITAL_1_ENABLED_BITMASK)
+        {
+            digitalPinStates |= ((PORTB & B00111100) >> 2);
+        }
+        if(enabledFlags & PORT_DIGITAL_2_ENABLED_BITMASK)
+        {
+            digitalPinStates |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6);
+        }
+        // Compares all the digital pins against their reference value, but only keep the pins that are in input mode.
+        // Every bit in this variable is 1 if the corresponding pin was in input mode and matched, or 0 if it wasn't.
+        const uint8_t matches = ~((digitalPinStates ^ pollReferenceValues) & pinModeFlags);
+
+        // If there was at least 1 match, send the matches bitarray to the client.
+        if(matches != 0)
+        {
+            writeSerialBytes((const uint8_t[]){
+                (COMMAND_SOURCE_SERIAL | COMMAND_START_POLL_READING),
+                matches
+            }, 2);
+        }
+
+      #ifdef MDEBUG_MODE
+        debuLog(INFO_END_pollDigitalPins);
       #endif
     }
 
@@ -625,6 +1296,29 @@
       #ifdef MDEBUG_MODE
         debugLogWithStack(INFO_START_startAnalogReading, (const uint8_t[]){address}, 1);
       #endif
+
+      #ifdef MCHECK_MODE
+        // If the address is an unmapped pin, report an error.
+        if(address > ADMUX_PIN_ADDRESS_A5)
+        {
+            debugDumpWithStack(ERROR_ILLEGAL_ADDRESS_startAnalogReading, (const uint8_t[]){address}, 1);
+        }
+        // If the reading is being taken on pin A4, report an error. We never use pin A4.
+        if(address == ADMUX_PIN_ADDRESS_A4)
+        {
+            debugDump(ERROR_PIN_A4_ACCESS_startAnalogReading);
+        }
+        // If the Arduino isn't currently taking any readings, report an error.
+        if((statusFlags & CURRENT_READING_TYPE_BITMASK) == READING_TYPE_NONE)
+        {
+            debugDump(ERROR_NO_READING_startAnalogReading);
+        }
+      #endif
+
+        // Directs the ADC use the onboard 5v power rail as it's reference voltage and sets the pin address to measure.
+        ADMUX = (1 << REFS0) | address;
+        // Enables the ADC, starts a conversion with interrupts enabled, and sets the ADC clock to a multiplier of 16.
+        ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (1 << ADPS2);
 
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_startAnalogReading);
@@ -638,6 +1332,19 @@
       #ifdef MDEBUG_MODE
         debugLog(INFO_START_stopAnalogReadings);
       #endif
+
+      #ifdef MCHECK_MODE
+          // If there is a reading still running, report an error.
+          if((statusFlags & CURRENT_READING_TYPE_BITMASK) != READING_TYPE_NONE)
+          {
+              debugDump(ERROR_READING_STILL_RUNNING_stopAnalogReadings);
+          }
+      #endif
+
+        // Disable the Analog to Digital Converter (ADC).
+        ADCSRA = B00000000;
+        // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
+        statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
 
       #ifdef MDEBUG_MODE
         debugLog(INFO_END_stopAnalogReadings);
@@ -672,6 +1379,7 @@
             serialPanicMode();
             return;
         }
+        // If there wasn't a match, report an error and enter serial panic mode.
         if(checksum[0] != computed)
         {
             debugDumpWithStack(ERROR_CHECKSUM_MISMATCH_readSerialBytes, (const uint8_t[]){computed, checksum}, 2);
@@ -684,22 +1392,21 @@
 
     inline void writeSerialBytes(const uint8_t buffer, const uint8_t length)
     {
-        // Write the payload into the serial output buffer.
-        Serial.write(buffer, length);
-
         // Compute a checksum for the payload data.
         uint8_t computed = 0;
         for(int i = 0; i < length; i++)
         {
             computed ^= buffer[i];
         }
-        // Write the checksum byte into the serial output buffer.
+
+        // Write the payload and checksum byte into the serial output buffer.
+        Serial.write(buffer, length);
         Serial.write(computed);
     }
 
 
 
-    inline void serialPanicMode()
+    inline void serialPanicMode()//TODO decide on better behavior for this!!!
     {
         // Turn on the on-board LED to indicate an error has occurred.
         PORTD |= B00100000;
@@ -740,17 +1447,8 @@
 
 
 
-  #ifdef MDEBUG_MODE
     inline void debugLog(const uint8_t debugCode)
     {
-      #ifdef MCHECK_MODE
-        // If an error message was passed to this function, report an error. Only informational codes should be passed.
-        if((debugCode & DEBUG_CODE_TYPE_BITMASK) != DEBUG_CODE_TYPE_INFORM)
-        {
-            debugDumpWithStack(ERROR_DEBUG_CODE_TYPE_MISTMATCH_debugLog, (const uint8_t[]){debugCode}, 1);
-        }
-      #endif
-
         // Get the current time to timestamp the log message with.
         const uint32_t time = micros();
         // Write the log message into the serial buffer so it'll be sent to the client.
@@ -769,27 +1467,16 @@
     inline void debugLogWithStack(const uint8_t debugCode, const uint8_t[] stack, const uint8_t stackLength)
     {
       #ifdef MCHECK_MODE
-        // If an error message was passed to this function, report an error. Only informational codes should be passed.
-        if((debugCode & DEBUG_CODE_TYPE_BITMASK) != DEBUG_CODE_TYPE_INFORM)
+        // If the debug-code doesn't have the additional payload flag it shouldn't send a stack, so report an error.
+        if(!(debugCode & ADDITIONAL_PAYLOAD_BITMASK))
         {
-            debugDumpWithStack(ERROR_DEBUG_CODE_TYPE_MISTMATCH_debugLogWithStack, (const uint8_t[]){debugCode}, 1);
+            debugDumpWithStack(ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugLogWithStack, (const uint8_t[]){debugCode}, 1);
         }
       #endif
 
-        // Get the current time to timestamp the log message with.
-        const uint32_t time = micros();
-        // Write the log message and stack into the serial buffer so it'll be sent to the client.
-        Serial.write((const uint8_t[]){
-            (COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
-            (debugCode | ADDITIONAL_PAYLOAD_BITMASK),
-            ((time >> 24) & 0xff),
-            ((time >> 16) & 0xff),
-            ((time >>  8) & 0xff),
-             (time        & 0xff)
-        }, 6);
+        debugLog(debugCode);
         Serial.write(stack, stackLength);
     }
-  #endif
 
 
 
@@ -861,66 +1548,14 @@
 
     inline void debugDumpWithStack(const uint8_t debugCode, const uint8_t[] stack, const uint8_t stackLength)
     {
-      #ifdef MCHECK_MODE
-        // If an informational message was passed to this function, report an error. Only error codes should be passed.
-        if((debugCode & DEBUG_CODE_TYPE_BITMASK) != DEBUG_CODE_TYPE_ERROR)
+        // If the debug-code doesn't have the additional payload flag it shouldn't send a stack, so report an error.
+        if(!(debugCode & ADDITIONAL_PAYLOAD_BITMASK))
         {
-            debugDumpWithStack(ERROR_DEBUG_CODE_TYPE_MISTMATCH_debugDumpWithStack, (const uint8_t[]){debugCode}, 1);
+            debugDumpWithStack(ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugDumpWithStack, (const uint8_t[]){debugCode}, 1);
         }
       #endif
 
-        // Get the current time to timestamp the log message with.
-        const uint32_t time = micros();
-        // Write the log message and dump into the serial buffer so it'll be sent to the client.
-        Serial.write((const uint8_t[]){
-            (COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
-            debugCode,
-            ((time >> 24) & 0xff),
-            ((time >> 16) & 0xff),
-            ((time >>  8) & 0xff),
-             (time        & 0xff),
-            enabledFlags,
-            pinModeFlags,
-            statusFlags,
-            sensorIDs[0],
-            sensorIDs[1],
-            sensorIDs[2],
-            sensorIDs[3],
-            ((samplePeriod >> 24) & 0xff),
-            ((samplePeriod >> 16) & 0xff),
-            ((samplePeriod  >> 8) & 0xff),
-             (samplePeriod        & 0xff),
-            ((BAUD_RATE >> 24) & 0xff),
-            ((BAUD_RATE >> 16) & 0xff),
-            ((BAUD_RATE >>  8) & 0xff),
-             (BAUD_RATE        & 0xff),
-            ((dataBufferCounter >> 8) & 0xff),
-             (dataBufferCounter       & 0xff),
-          #ifdef MAVERAGE_COUNT
-            ((averagingBufferCounter >> 8) & 0xff),
-             (averagingBufferCounter       & 0xff),
-          #else
-            0,
-            0,
-          #endif
-            ((DATA_BUFFER_SIZE >> 8) & 0xff),
-             (DATA_BUFFER_SIZE       & 0xff),
-            AVERAGE_COUNT,
-            CHECK_MODE,
-            DEBUG_MODE,
-            PORTB,
-            PORTC,
-            PORTD,
-            DDRB,
-            DDRC,
-            DDRD,
-            DIDR0,
-            DIDR1,
-            ADMUX,
-            ADCSRB,
-            ADCSRB,
-            ACSR
-        }, 42);
+        debugDump(debugCode);
         Serial.write(stack, stackLength);
     }
 
@@ -945,228 +1580,13 @@
 
 
 
-//TODO paste the check functions everywhere so they dont have to wait much.
 
 
 
 
 
 
-
-
-            case(COMMAND_SET_SAMPLE_RATE):
-                setSamplePeriod();
-                // Note that we don't break here, so we print the actual sample period back to the client.
-            case(COMMAND_GET_SAMPLE_RATE):
-                // Send the current sample period to the client.
-                Serial.write(const uint8_t[]{(RESPONSE_PREFIX | COMMAND_GET_SAMPLE_RATE), ((samplePeriod >> 24) & 0xff),
-                                ((samplePeriod >> 16) & 0xff), ((samplePeriod >> 8) & 0xff), (samplePeriod & 0xff)}, 5);
-            break;
-
-            case(COMMAND_SET_PORT_STATES):
-                // Read in a payload containing the new port states in a bit array.
-                uint8_t data[1];
-                readSerialBytes(data, 1);
-                // Set the new port states. The first 4 bits of the payload contain a bit representing whether or not
-                // a port should be enabled, and the last 4 bits are a mask of which ports should be changed.
-                const uint8_t mask = (data[0] >> 4) & B00001111;
-                enabledFlags = (enabledFlags & ~mask) | (data[0] & mask);
-            break;
-            case(COMMAND_GET_PORT_STATES):
-                // Send the current port states to the client.
-                Serial.write((const uint8_t[]){(RESPONSE_PREFIX | COMMAND_GET_PORT_STATES),
-                                              (PORT_X_ENABLED_BITMASK & enabledFlags)}, 2);
-            break;
-
-            case(COMMAND_SET_PIN_STATES):
-                // Read in a payload containing the new pin states in a bit array.
-                uint8_t data[3];
-                readSerialBytes(data, 3);
-                // Set the new pin states. The first 4 bits of the payload represent whether or not an analog pin should
-                // be enabled, and the next 4 bits are a mask for which analog pins should be changed. The next 8 bits
-                // containg the pin mode for each digital pin the Vernier interface uses, and the last 8 bits are a mask
-                // for which digital pins should be updated.
-            break;
-            case(COMMAND_GET_PIN_STATES):
-                // Send the current pin states to the client.
-                Serial.write((const uint8_t[]){(RESPONSE_PREFIX | COMMAND_GET_PIN_STATES, pinModeFlags, 
-                                              (PIN_AX_ENABLED_BITMASK & enabledFlags))}, 3);
-            break;
-
-
-
-
-inline void startAnalogReading(const uint8_t address)
-{
-  #ifdef MDEBUG_MODE
-    debugLogWithStack(DEBUG_START_startAnalogReading, (const uint8_t[]){address}, 1);
-  #endif
-
-  #ifdef MCHECK_MODE
-    // If the address is an unmapped pin, report an error.
-    if(address > ADMUX_PIN_ADDRESS_A5)
-    {
-        debugLogDumpWithStack(ERROR_ILLEGAL_ANALOG_PIN_ADDRESS_startAnalogReading, (const uint8_t[]){address}, 1);
-    }
-    // If we started a reading on analog pin A4 (which we never use), report an error.
-    if(address == ADMUX_PIN_ADDRESS_A4)
-    {
-        debugLogDumpWithStack(ERROR_ANALOG_PIN_A4_ACCESS_startAnalogReading, (const uint8_t[]){address}, 1);
-    }
-    // If the Arduino shouldn't be taking readings, report an error.
-    if((CURRENT_READING_TYPE_BITMASK & statusFlags) == READING_TYPE_NONE)
-    {
-        debugLogDumpWithStack(ERROR_READING_TYPE_MISMATCH_startAnalogReading, (const uint8_t[]){address}, 1);
-    }
-  #endif
-
-    // Sets the ADC to use the onboard 5v power rail as it's reference voltage and sets the pin address to measure.
-    ADMUX = (1 << REFS0) | address;
-    // Enables the ADC, starts a conversion with interrupts enabled, and sets the ADC clock to a multiplier of 16.
-    ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (1 << ADPS2);
-
-  #ifdef MDEBUG_MODE
-    debugLog(DEBUG_END_startAnalogReading);
-  #endif
-}
-/** Stops any currently running analog readings and resets the current reading type to NONE. **/
-inline void stopAnalogReadings()
-{
-  #ifdef MCHECK_MODE
-    // If the Arduino wasn't taking any analog readings, report an error.
-    if((CURRENT_READING_TYPE_BITMASK & statusFlags) == READING_TYPE_NONE)
-    {
-        debugLogDump(ERROR_READING_TYPE_MISMATCH_stopAnalogReadings);
-    }
-  #endif
-
-    // Disable the Analog to Digital Converter (ADC).
-    ADCSRA = B00000000;
-    // Set the current reading type to NONE (Same as clearing the reading type to 0).
-    statusFlags &= CURRENT_READING_TYPE_BITMASK;
-}
-
-
-
-
-//TODO THIS FUNCTION
-/** Completes a reading by either sending the data to the client, or if averaging is enabled by computing and sending
-  * an average if there's been enough data points. **/
-inline void completeReading()
-{
-  #ifdef DEBUG_MODE
-    debugLog(DEBUG_COMPLETE_READING_START);
-  #endif
-
-  #ifdef MAVERAGE_COUNT
-    // If enough readings have been taken to compute an average, write the average into the data buffer.
-    if((averagingBufferCounter / 6) == (AVERAGE_COUNT - 1))
-    {
-        // TODO maybe make the times and digital readings real averages?
-        // Store the time the reading was finished at.
-        const uint32_t time = micros();
-    //TODO TODO TODO TODO
-        uint8_t digitalResults = B00000000;
-        float[4] analogResults = {0f, 0f, 0f, 0f};
-
-        for(int i = 0; i < AVERAGE_COUNT; i++)
-        {
-            digitalResults |= averagingBuffer[6 * i];
-        }
-
-        // TODO take the average and write into the data buffer.
-
-    } else {
-        // Otherwise just increment the averaging count by 1 full reading (6 bytes).
-        averagingBufferCounter += 6;
-
-      #ifdef DEBUG_MODE
-        debugLog(DEBUG_COMPLETE_READING_END);
-      #endif
-      return;
-    }
-  #endif
-
-    // Write the TAKE_READING response byte to the serial connection.
-    Serial.write(RESPONSE_PREFIX | COMMAND_TAKE_READING);
-    // Write from the data buffer into the Arduino's serial output buffer to send it to the client.
-    const uint8_t memoryMode = (PIN_AX_ENABLED_BITMASK & enabledFlags)
-    switch(memoryMode)
-    {
-        // If there's 1 pin enabled, readings take up 7 bytes.
-        case(B00010000): case(B00100000): case(B01000000): case(B10000000):
-          #ifdef MCHECK_MODE
-            if(dataBufferCounter != 7)
-            {
-                debugLogDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH, (const uint8_t[]){dataBufferCounter}, 1);
-            }
-          #endif
-            Serial.write(dataBuffer, 7);
-        break;
-
-        // If there's 2 pins enabled, readings take up 8 bytes.
-        case(B00110000): case(B01010000): case(B10010000): case(B01100000): case(B10100000): case(B11000000):
-          #ifdef MCHECK_MODE
-            if(dataBufferCounter != 8)
-            {
-                debugLogDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH, (const uint8_t[]){dataBufferCounter}, 1);
-            }
-          #endif
-            Serial.write(dataBuffer, 8);
-        break;
-
-        // If there's 3 pins enabled, readings take up 9 bytes.
-        case(B01110000): case(B10110000): case(B11010000): case(B11100000):
-          #ifdef MCHECK_MODE
-            if(dataBufferCounter != 9)
-            {
-                debugLogDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH, (const uint8_t[]){dataBufferCounter}, 1);
-            }
-          #endif
-            Serial.write(dataBuffer, 9);
-        break;
-
-        // If there's 4 pins enabled, readings take up 10 bytes.
-        case(B11110000):
-          #ifdef MCHECK_MODE
-            if(dataBufferCounter != 10)
-            {
-                debugLogDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH, (const uint8_t[]){dataBufferCounter}, 1);
-            }
-          #endif
-            Serial.write(dataBuffer, 10);
-        break;
-
-      #ifdef MCHECK_MODE
-        // A reading was finished with no pins enabled.
-        case(B00000000):
-            debugLogDump(ERROR_EMPTY_READING_COMPLETED);
-        break;
-        // An illegal value was switched on, this should be impossible.
-        default:
-            debugLogDumpWithStack(ILLEGAL_MEMORY_MODE, (const uint8_t[]){memoryMode}, 1);
-        break;
-      #endif
-    }
-
-    // If the Arduino was only taking a single reading, set the current READING_TYPE back to none.
-    if((CURRENT_READING_TYPE_BITMASK & statusFlags) == READING_TYPE_SINGLE)
-    {
-        stopAnalogReadings();
-    }
-    // Reset the databuffer counter.
-    dataBufferCounter = 0;
-
-  #ifdef DEBUG_MODE
-    debugLog(DEBUG_COMPLETE_READING_END);
-  #endif
-}
-// TODO THIS FUNCTION
-
-
-
-
-
+//TODO paste the check functions everywhere so they dont have to wait much
 
 
 /** Handles an analog reading taken from one of the Vernier sensors by storing the current reading in a buffer and
@@ -1390,293 +1810,7 @@ inline void handleAnalogSensorIDReading()
   #endif
 }
 
-
-/** Checks if there's an unhandled interrupt from the ADC, and if there is this method handles it. **/
-inline void checkADCInterrupt()
-{
-    // Report an error if an ADC interrupt was missed and unhandled.
-    if(ADC_INTERRUPT_MISSED_BITMASK & statusFlags)
-    {
-        debugLogDump(ERROR_UNHANDLED_ISR_checkADCInterrupt);
-    }
-
-    // If there is an ADC interrupt to handle, handle it.
-    if(ADC_INTERRUPT_SIGNAL_BITMASK & statusFlags)
-    {
-      #ifdef MDEBUG_MODE
-        debugLog(DEBUG_START_checkADCInterrupt);
-      #endif
-
-        // Get the address of the analog pin that the reading was taken from.
-        const uint8_t address = (ADMUX_ADDRESS_BITMASK & ADMUX);
-        // If the reading was taken from pins A0,A1,A2,A3 handle it as a sensor reading.
-        if(address <= ADMUX_PIN_ADDRESS_A3)
-        {
-            handleAnalogSensorReading(address);
-        } else
-        // If the reading was taken from pin A5 handle it as a sensor ID reading.
-        if(address == ADMUX_PIN_ADDRESS_A5)
-        {
-            handleAnalogSensorIDReading();
-        }
-      #ifdef MCHECK_MODE
-        // If the reading was taken from pin A4, report an error.
-        else if(address == ADMUX_PIN_ADDRESS_A4)
-        {
-            debugLogDumpWithStack(ERROR_ANALOG_PIN_A4_ACCESS_checkADCInterrupt, (const uint8_t[]){address}, 1);
-        }
-        // If the reading was taken from an unmapped pin, report an error. This should be impossible.
-        else {
-            debugLogDumpWithStack(ERROR_ILLEGAL_ANALOG_PIN_ADDRESS_checkADCInterrupt, (const uint8_t[]){address}, 1);
-        }
-      #endif
-
-        // Clear the ADC interrupt flag.
-        statusFlags &= ~ADC_INTERRUPT_SIGNAL_BITMASK;
-
-      #ifdef MDEBUG_MODE
-        debugLog(DEBIG_END_checkADCInterrupt);
-      #endif
-    }
-  #ifdef MDEBUG_MODE
-    // Log that ADC interrupts were checked for, but there weren't any to handle.
-    else {
-        debugLog(DEBUG_NONE_checkADCInterrupt);
-    }
-  #endif
-}
-
-
-
-
-/** Starts a new sensor reading by clearing out any old reading data, recording a timestamp for when the reading
-  * started and the current values of the digital pins before starting any necessary analog readings. **/
-inline void startNewSensorReading()
-{
-  #ifdef MDEBUG_MODE
-    debugLog(DEBUG_START_startNewSensorReading);
-  #endif
-  #ifdef MCHECK_MODE
-    const uint8_t readingType = CURRENT_READING_TYPE_BITMASK & statusFlags;
-    // Report an error if the Arduino shouldn't be taking readings.
-    if(!((readingType == READING_TYPE_SINGLE) || readingType == READING_TYPE_BATCH))
-    {
-        debugLogDumpWithStack(ERROR_READING_TYPE_MISMATCH_startNewSensorReading, (const uint8_t[]){readingType}, 1);
-    }
-  #endif
-
-    // Select the appropiate buffer and position variables to store the sensor reading in.
-  #ifdef MAVERAGE_COUNT
-    uint8_t* buffer = dataBuffer;
-    const uint8_t pos = dataBufferCounter + 4; //The first 4 bytes contain the timestamp.
-  #else
-    uint8_t* buffer = averagingBuffer;
-    const uint8_t pos = averagingBufferCounter;
-  #endif
-
-    // Clear any leftover data from the buffer
-    switch(PIN_AX_ENABLED_BITMASK & enabledFlags)
-    {
-        // If there aren't any analog pins enabled, do nothing.
-        case B00000000:
-        break;
-        // With 1 analog pin enabled, each measurement takes up 2 bytes, so only clear the next 3 bytes.
-        case B00010000: case B00100000: case B01000000: case B10000000:
-            buffer[pos] = 0; buffer[pos+1] = 0; buffer[pos+2] = 0;
-        break;
-        // With 2 analog pins enabled, each measurement takes up 4 bytes, so only clear the next 4 bytes.
-        case B00110000: case B01010000: case B10010000: case B01100000: case B10100000: case B11000000:
-            buffer[pos] = 0; buffer[pos+1] = 0; buffer[pos+2] = 0; buffer[pos+3] = 0;
-        break;
-        // With 3 analog pins enabled, each measurement takes up 5 bytes, so only clear the next 5 bytes.
-        case B01110000: case B10110000: case B11010000: case B11100000:
-            buffer[pos] = 0; buffer[pos+1] = 0; buffer[pos+2] = 0; buffer[pos+3] = 0; buffer[pos+4] = 0;
-        break;
-        // With 4 analog pins enabled, each measurement takes up 6 bytes, so only clear the next 6 bytes.
-        case B11110000:
-            buffer[pos] = 0; buffer[pos+1] = 0; buffer[pos+2] = 0; buffer[pos+3] = 0; buffer[pos+4] = 0; buffer[pos+5] = 0;
-        break;
-      #ifdef MCHECK_MODE
-        // None of the cases matched, so an impossible value was switched on.
-        default:
-            debugLogDump(ERROR_ILLEGAL_ENABLED_PINS_startNewSensorReading);
-        break;
-      #endif
-    }
-
-    // Store the time that the reading was started at in the data buffer.
-    const uint32_t time = micros();
-    dataBuffer[dataCounter]   = (time >> 24) & 0xff;
-    dataBuffer[dataCounter+1] = (time >> 16) & 0xff;
-    dataBuffer[dataCounter+2] = (time >> 8)  & 0xff;
-    dataBuffer[dataCounter+3] = time         & 0xff;
-
-    // Record the values of any digital pins that are enabled and in input mode.
-    if(PORT_DIGITAL_1_ENABLED_BITMASK & enabledFlags)
-    {
-        // Store the values of pins 2,3,4,5.
-        buffer[pos] = ((PORTB & B00111100) >> 2) & pinModeFlags;
-    }
-    if(PORT_DIGITAL_2_ENABLED_BITMASK & enabledFlags)
-    {
-        // Store the values of pins 6,7,8,9.
-        buffer[pos] |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6) & pinModeFlags;
-    }
-
-    // Start an analog reading on the lowest address analog pin first (in any are enabled).
-    if(PIN_A0_ENABLED_BITMASK & enabledFlags)
-    {
-        startAnalogReading(ADMUX_PIN_ADDRESS_A0);
-    } else
-    if(PIN_A1_ENABLED_BITMASK & enabledFlags)
-    {
-        startAnalogReading(ADMUX_PIN_ADDRESS_A1);
-    } else
-    if(PIN_A2_ENABLED_BITMASK & enabledFlags)
-    {
-        startAnalogReading(ADMUX_PIN_ADDRESS_A2);
-    } else
-    if(PIN_A3_ENABLED_BITMASK * enabledFlags)
-    {
-        startAnalogReading(ADMUX_PIN_ADDRESS_A3);
-    } else {
-        // Complete the reading if there's no analog pins to take readings from.
-        completeReading();
-    }
-
-  #ifdef MDEBUG_MODE
-    debugLog(DEBUG_END_startNewSensorReading);
-  #endif
-}
-
-
-/** Checks if there's an unhandled interrupt from the ADC, and if there is this method handles it. **/
-inline void checkTimerInterrupt()
-{
-    // Report an error if a TIMER interrupt was missed and unhandled.
-    if(TIMER_INTERRUPT_MISSED_BITMASK & statusFlags)
-    {
-        debugLogDump(ERROR_UNHANDLED_ISR_checkTimerInterrupt);
-    }
-
-    // If there's a timer interrupt to handle, handle it.
-    if(TIMER_INTERRUPT_SIGNAL_BITMASK & statusFlags)
-    {
-      #ifdef MDEBUG_MODE
-        debugLog(DEBUG_START_checkTimerInterrupt);
-      #endif
-
-        startNewSensorReading();
-
-        // Clear the TIMER interrupt flag.
-        statusFlags &= ~TIMER_INTERRUPT_SIGNAL_BITMASK;
-
-      #ifdef MDEBUG_MODE
-        debugLog(DEBUG_END_checkTimerInterrupt);
-      #endif
-    }
-  #ifdef MDEBUG_MODE
-    // Log that TIMER interrupts were checked for, but there weren't any to handle.
-    else {
-        debugLog(DEBUG_NONE_checkTimerInterrupt);
-    }
-  #endif
-}
-
-
-
-
-/** Sets the Arduino's sampling period if it's different from the current one by changing the TIMER1 prescalar and
-  * compare match value. This doesn't change the clock or counter.**/
-inline void setSamplePeriod()
-{
-    // Read the sample period that the client is requesting (always given in ns).
-    uint8_t data[4];
-    if(readSerialBytes(data, 4))
-    {
-        return;
-    }
-    uint32_t requestedPeriod =
-        ((uint32_t)data[3] << 24) | (uint32_t)(data[2] << 16) | (uint32_t)(data[1] << 8) | (uint32_t)data[0];
-    // Compute the number of clock cycles it corresponds to. (1 clock cycle is 250ns).
-    requestedPeriod /= 250;
-    // Periods less than 16 clock cycles aren't supported due to potential instabilities.
-    if(requestedPeriod < 16)
-    {
-        debugLog(ERROR_SAMPLE_PERIOD_TOO_SMALL_processClientCommands);
-        break;
-    }
-    // If the requested period is already set as the sample period, return.
-    if(requestedPeriod == samplePeriod)
-    {
-        return;
-    }
-
-    // Set TIMER1's clock prescalar based on the highest power of two the period is cleanly divisble by, and how many
-    // clock cycles will need to be counted. The TIMER1 clock can only count up to 65535, so for instance, to count
-    // higher than 65535, it needs a prescalar higher than 1 (8 is the next highest).
-
-    // If the clock cycle count is greater than (65535 * 256), or divisble by 1024.
-    if((requestedPeriod > 16776960) || (requestedPeriod & (uint16_t)B1111111111) == 0)
-    {
-        // This sets the prescalar to 1024 and divides the requested cycle count by 1024.
-        TCCR1B = (1 << CS12) | (1 << CS10);
-        requestedPeriod >> 10;
-        // Set the new sample period.
-        samplePeriod = (uint32_t)requestedPeriod * 250 * 1024;
-    } else
-    // If the clock cycle count is greater than (65535 * 64), or divisble by 256.
-    if((requestedPeriod > 4194240) || ((requestedPeriod & B11111111) == 0))
-    {
-        // This sets the prescalar to 256 and divides the requested cycle count by 256.
-        TCCR1B = (1 << CS12);
-        requestedPeriod >> 8;
-        samplePeriod = (uint32_t)requestedPeriod * 250 * 256;
-    } else
-    // If the clock cycle count is greater than (65535 * 8), or divisble by 64.
-    if((requestedPeriod > 524280) || ((requestedPeriod & B111111) == 0))
-    {
-        // This sets the prescalar to 64 and divides the requested cycle count by 64.
-        TCCR1B = (1 << CS11) | (1 << CS10);
-        requestedPeriod >> 6;
-        samplePeriod = (uint32_t)requestedPeriod * 250 * 64;
-    } else
-    // If the clock cycle count is greater than (65535 * 1), or divisble by 8.
-    if((requestedPeriod > 65535) || ((requestedPeriod & B111) == 0))
-    {
-        // This sets the prescalar to 8 and divides the requested cycle count by 8.
-        TCCR1B = (1 << CS11);
-        requestedPeriod >> 3;
-        samplePeriod = (uint32_t)requestedPeriod * 250 * 8;
-    } else {
-        // The prescalar can be 1. This sets the prescalar to 1.
-        TCCR1B = (1 << CS10);
-        samplePeriod = (uint32_t)requestedPeriod * 250;
-    }
-
-    // Set the number of prescalar adjusted clock cycles TIMER1 should trigger after.
-    OCR1AH = (requestedPeriod >> 8) & 0xff;
-    OCR1AL = requestedPeriod & 0xff;
-}
-
-void setup()
-{
 // Make sure pins 10 and 11 are output!
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // This function gets called once when the program first starts; it initializes the serial connection, and sets up
 // various registers and states of the Arduino for the program.
 void setup()
@@ -1817,9 +1951,6 @@ void setup()
 
  Digital Sensor 2 takes a little longer to read from than digital sensor 1.
  Analog sensors are read in order one at a time, so higher address analog pins will be read after others if other pins are enabled.
-
- There are 2 command codes still unused (13 and 15)
- There are 2 bits unused in statusFlags (11111100)
 **/
 
 /**
@@ -1829,3 +1960,4 @@ void setup()
 **/
 
 // TODO SO WHATS THE POINT OF THE DATA BUFFER NOW THEN?
+// Sensor ID readings might not work if A5 is pulled up or something or whatever,
