@@ -170,13 +170,11 @@ inline void getSamplePeriod()
   #endif
 
     // Write the sample period into the serial output buffer.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_GET_SAMPLE_PERIOD),
-        (uint8_t)((samplePeriod >> 24) & 0xff),
-        (uint8_t)((samplePeriod >> 16) & 0xff),
-        (uint8_t)((samplePeriod >> 8)  & 0xff),
-        (uint8_t) (samplePeriod        & 0xff)
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_SAMPLE_PERIOD),
+                      (uint8_t)((samplePeriod >> 24) & 0xff),
+                      (uint8_t)((samplePeriod >> 16) & 0xff),
+                      (uint8_t)((samplePeriod >> 8)  & 0xff),
+                      (uint8_t) (samplePeriod        & 0xff)});
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getSamplePeriod);
@@ -276,10 +274,8 @@ inline void getPortStates()
   #endif
 
     // Write the portion of `enabledFlags` storing the states of the Vernier ports into the serial output buffer.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_GET_PORT_STATES),
-        (uint8_t)(enabledFlags & PORT_ALL_ENABLED_BITMASK)
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_PORT_STATES),
+                      (uint8_t)(enabledFlags & PORT_ALL_ENABLED_BITMASK)});
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getPortStates);
@@ -317,10 +313,8 @@ inline void getAnalogPinStates()
   #endif
 
     // Write the portion of `enabledFlags` storing the states of the analog pins into the serial output buffer.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_GET_APIN_STATES),
-        (uint8_t)(enabledFlags & APIN_ALL_ENABLED_BITMASK)
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_APIN_STATES),
+                      (uint8_t)(enabledFlags & APIN_ALL_ENABLED_BITMASK)});
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getAnalogPinStates);
@@ -358,10 +352,8 @@ inline void getDigitalPinModes()
   #endif
 
     // Write the `pinModeFlags` bitarray into the serial output buffer.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_GET_DPIN_MODES),
-        pinModeFlags
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_DPIN_MODES),
+                               pinModeFlags});
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getDigitalPinModes);
@@ -399,13 +391,11 @@ inline void getSensorIDs()
   #endif
 
     // Write the sensor IDs to the serial output buffer in order.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_GET_SENSOR_IDS),
-        sensorIDs[0],
-        sensorIDs[1],
-        sensorIDs[2],
-        sensorIDs[3]
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_SENSOR_IDS),
+                               sensorIDs[0],
+                               sensorIDs[1],
+                               sensorIDs[2],
+                               sensorIDs[3]});
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getSensorIDs);
@@ -414,7 +404,7 @@ inline void getSensorIDs()
 
 
 
-inline void setSensorID()
+inline void setSensorID()//TODO I'M fixing the formatting of multiline lists. Just decided that if there's only one entry it's inlne, otherwise newline.
 {
   #ifdef MDEBUG_MODE
     debugLog(INFO_START_setSensorIDs);
