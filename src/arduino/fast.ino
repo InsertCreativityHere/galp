@@ -404,7 +404,7 @@ inline void getSensorIDs()
 
 
 
-inline void setSensorID()//TODO I'M fixing the formatting of multiline lists. Just decided that if there's only one entry it's inlne, otherwise newline.
+inline void setSensorID()
 {
   #ifdef MDEBUG_MODE
     debugLog(INFO_START_setSensorIDs);
@@ -469,10 +469,10 @@ inline void startBatchReading()
 
   #ifdef MCHECK_MODE
     // If there's already a reading in progress, report an error and do nothing.
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-    if(currentReadingType != READING_TYPE_NONE)
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    if(readingType != READING_TYPE_NONE)
     {
-        debugLogWithStack(ERROR_ALREADY_READING_startBatchReading, {currentReadingType});
+        debugLogWithStack(ERROR_ALREADY_READING_startBatchReading, {readingType});
         return;
     }
   #endif
@@ -503,10 +503,10 @@ inline void startPollReading()
 
   #ifdef MCHECK_MODE
     // If there's already a reading in progress, report an error and do nothing.
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-    if(currentReadingType != READING_TYPE_NONE)
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    if(readingType != READING_TYPE_NONE)
     {
-        debugLogWithStack(ERROR_ALREADY_READING_startPollReading, {currentReadingType});
+        debugLogWithStack(ERROR_ALREADY_READING_startPollReading, {readingType});
         return;
     }
   #endif
@@ -530,10 +530,10 @@ inline void startPollReading()
 
       #ifdef MCHECK_MODE
         // If there's already a reading in progress, report an error and do nothing.
-        const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-        if(currentReadingType != READING_TYPE_NONE)
+        const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+        if(readingType != READING_TYPE_NONE)
         {
-            debugLogWithStack(ERROR_ALREADY_READING_scanSensors, {currentReadingType});
+            debugLogWithStack(ERROR_ALREADY_READING_scanSensors, {readingType});
             return;
         }
       #endif
@@ -561,8 +561,8 @@ inline void stopReading()
   #endif
 
     // Switch on the type of reading currently in progress.
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-    switch(currentReadingType)
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    switch(readingType)
     {
         case(READING_TYPE_BATCH_WAITING): case(READING_TYPE_BATCH_RUNNING):
             // Stop TIMER1 and it's interrupts.
@@ -587,7 +587,7 @@ inline void stopReading()
         break;
 
         default:
-            debugDumpWithStack(ERROR_ILLEGAL_READING_stopReading, {currentReadingType});
+            debugDumpWithStack(ERROR_ILLEGAL_READING_stopReading, {readingType});
         break;
       #endif
     }
@@ -628,12 +628,12 @@ inline void checkTIMER1Interrupt()
         return;
     }
 
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
   #ifdef MCHECK_MODE
     // If the Arduino is supposed to be taking another kind of reading, report an error.
-    if((currentReadingType != READING_TYPE_BATCH_WAITING) && (currentReadingType != READING_TYPE_BATCH_RUNNING))
+    if((readingType != READING_TYPE_BATCH_WAITING) && (readingType != READING_TYPE_BATCH_RUNNING))
     {
-        debugDumpWithStack(ERROR_INVALID_READING_checkTIMER1Interrupt, {currentReadingType});
+        debugDumpWithStack(ERROR_INVALID_READING_checkTIMER1Interrupt, {readingType});
     }
   #endif
 
@@ -646,7 +646,7 @@ inline void checkTIMER1Interrupt()
 
         // If the last reading is still in progress, report an error, and skip the reading this was supposed to
         // start. Otherwise start a new sensor reading like normal.
-        if(currentReadingType == READING_TYPE_BATCH_RUNNING)
+        if(readingType == READING_TYPE_BATCH_RUNNING)
         {
             debugLog(ERROR_ALREADY_READING_checkTIMER1Interrupt);
         } else {
@@ -917,10 +917,8 @@ inline void handleAnalogSensorIDReading()
 
   #ifdef MCHECK_MODE
     // If the port address is invalid, report an error and stop the sensor scan.
-    if((portAddress != MUX_PORT_ADDRESS_ANALOG_1)  &&
-       (portAddress != MUX_PORT_ADDRESS_ANALOG_2)  &&
-       (portAddress != MUX_PORT_ADDRESS_DIGITAL_1) &&
-       (portAddress != MUX_PORT_ADDRESS_DIGITAL_2))
+    if((portAddress != MUX_PORT_ADDRESS_ANALOG_1) && (portAddress != MUX_PORT_ADDRESS_DIGITAL_1) &&
+       (portAddress != MUX_PORT_ADDRESS_ANALOG_2) && (portAddress != MUX_PORT_ADDRESS_DIGITAL_2))
     {
         debugDumpWithStack(ERROR_ILLEGAL_PORT_ADDRESS_handleAnalogSensorIDReading, {portAddress});
         // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
@@ -950,11 +948,9 @@ inline void handleAnalogSensorIDReading()
     {
         sensorIDs[portAddress] = sensorID;
         // Notify the client of the new sensorID and the port it's connected to.
-        writeSerialBytes((const uint8_t[]){
-            (COMMAND_SOURCE_ARDUINO | COMMAND_SET_SENSOR_ID),
-            portAddress,
-            sensorID
-        });
+        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_SET_SENSOR_ID),
+                                   portAddress,
+                                   sensorID});
     }
 
     // Switch on which port was just identified to know which port to check next, if any.
@@ -1007,10 +1003,10 @@ inline void startNewSensorReading()
 
   #ifdef MCHECK_MODE
     // If the Arduino isn't currently taking a single or batch reading, report an error, and skip the reading.
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-    if((currentReadingType != READING_TYPE_SINGLE) && (currentReadingType != READING_TYPE_BATCH_RUNNING))
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    if((readingType != READING_TYPE_SINGLE) && (readingType != READING_TYPE_BATCH_RUNNING))
     {
-        debugDumpWithStack(ERROR_INVALID_READING_startNewSensorReading, {currentReadingType});
+        debugDumpWithStack(ERROR_INVALID_READING_startNewSensorReading, {readingType});
         return;
     }
 
@@ -1018,9 +1014,8 @@ inline void startNewSensorReading()
     if(dataBufferCounter != 0)
     {
         debugDumpWithStack(ERROR_UNHANDLED_DATA_startNewSensorReading, {
-                                (uint8_t)((dataBufferCounter >> 8) & 0xff),
-                                (uint8_t) (dataBufferCounter        & 0xff)
-                            });
+                               (uint8_t)((dataBufferCounter >> 8) & 0xff),
+                               (uint8_t) (dataBufferCounter       & 0xff)});
     }
   #endif
 
@@ -1157,19 +1152,16 @@ inline void completeSensorReading()
                     debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading, {
                                            (uint8_t)((dataBufferCounter >> 8) & 0xff),
                                            (uint8_t) (dataBufferCounter       & 0xff),
-                                           memoryMode
-                                       });
+                                                      memoryMode});
                     break;
                 }
               #endif
-                writeSerialBytes((const uint8_t[]){
-                    (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
-                    dataBuffer[dataBufferCounter-5],
-                    dataBuffer[dataBufferCounter-4],
-                    dataBuffer[dataBufferCounter-3],
-                    dataBuffer[dataBufferCounter-2],
-                    dataBuffer[dataBufferCounter-1],
-                });
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING), {
+                                           dataBuffer[dataBufferCounter-5],
+                                           dataBuffer[dataBufferCounter-4],
+                                           dataBuffer[dataBufferCounter-3],
+                                           dataBuffer[dataBufferCounter-2],
+                                           dataBuffer[dataBufferCounter-1]});
             break;
 
             // If there's 1 pin enabled, readings take up 7 bytes.
@@ -1177,23 +1169,21 @@ inline void completeSensorReading()
               #ifdef MCHECK_MODE
                 if(dataBufferCounter != 7)
                 {
-                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,//TODO I STOPPED CHECKING FORMATTING HERE!
-                                        {(uint8_t)((dataBufferCounter >> 8) & 0xff),
-                                        (uint8_t) (dataBufferCounter       & 0xff),
-                                        memoryMode});
+                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading, {
+                                           (uint8_t)((dataBufferCounter >> 8) & 0xff),
+                                           (uint8_t) (dataBufferCounter       & 0xff),
+                                                      memoryMode});
                     break;
                 }
               #endif
-                writeSerialBytes((const uint8_t[]){
-                    (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
-                    dataBuffer[dataBufferCounter-7],
-                    dataBuffer[dataBufferCounter-6],
-                    dataBuffer[dataBufferCounter-5],
-                    dataBuffer[dataBufferCounter-4],
-                    dataBuffer[dataBufferCounter-3],
-                    dataBuffer[dataBufferCounter-2],
-                    dataBuffer[dataBufferCounter-1],
-                });
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                                           dataBuffer[dataBufferCounter-7],
+                                           dataBuffer[dataBufferCounter-6],
+                                           dataBuffer[dataBufferCounter-5],
+                                           dataBuffer[dataBufferCounter-4],
+                                           dataBuffer[dataBufferCounter-3],
+                                           dataBuffer[dataBufferCounter-2],
+                                           dataBuffer[dataBufferCounter-1]});
             break;
 
             // If there's 2 pins enabled, readings take up 8 bytes.
@@ -1201,24 +1191,22 @@ inline void completeSensorReading()
               #ifdef MCHECK_MODE
                 if(dataBufferCounter != 8)
                 {
-                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
-                                        {(uint8_t)((dataBufferCounter >> 8) & 0xff),
-                                        (uint8_t) (dataBufferCounter       & 0xff),
-                                        memoryMode});
+                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading, {
+                                           (uint8_t)((dataBufferCounter >> 8) & 0xff),
+                                           (uint8_t) (dataBufferCounter       & 0xff),
+                                                      memoryMode});
                     break;
                 }
               #endif
-                writeSerialBytes((const uint8_t[]){
-                    (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
-                    dataBuffer[dataBufferCounter-8],
-                    dataBuffer[dataBufferCounter-7],
-                    dataBuffer[dataBufferCounter-6],
-                    dataBuffer[dataBufferCounter-5],
-                    dataBuffer[dataBufferCounter-4],
-                    dataBuffer[dataBufferCounter-3],
-                    dataBuffer[dataBufferCounter-2],
-                    dataBuffer[dataBufferCounter-1],
-                });
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                                           dataBuffer[dataBufferCounter-8],
+                                           dataBuffer[dataBufferCounter-7],
+                                           dataBuffer[dataBufferCounter-6],
+                                           dataBuffer[dataBufferCounter-5],
+                                           dataBuffer[dataBufferCounter-4],
+                                           dataBuffer[dataBufferCounter-3],
+                                           dataBuffer[dataBufferCounter-2],
+                                           dataBuffer[dataBufferCounter-1]});
             break;
 
             // If there's 3 pins enabled, readings take up 9 bytes.
@@ -1226,25 +1214,23 @@ inline void completeSensorReading()
               #ifdef MCHECK_MODE
                 if(dataBufferCounter != 9)
                 {
-                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
-                                        {(uint8_t)((dataBufferCounter >> 8) & 0xff),
-                                        (uint8_t) (dataBufferCounter       & 0xff),
-                                        memoryMode});
+                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading, {
+                                           (uint8_t)((dataBufferCounter >> 8) & 0xff),
+                                           (uint8_t) (dataBufferCounter       & 0xff),
+                                                      memoryMode});
                     break;
                 }
               #endif
-                writeSerialBytes((const uint8_t[]){
-                    (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
-                    dataBuffer[dataBufferCounter-9],
-                    dataBuffer[dataBufferCounter-8],
-                    dataBuffer[dataBufferCounter-7],
-                    dataBuffer[dataBufferCounter-6],
-                    dataBuffer[dataBufferCounter-5],
-                    dataBuffer[dataBufferCounter-4],
-                    dataBuffer[dataBufferCounter-3],
-                    dataBuffer[dataBufferCounter-2],
-                    dataBuffer[dataBufferCounter-1],
-                });
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                                           dataBuffer[dataBufferCounter-9],
+                                           dataBuffer[dataBufferCounter-8],
+                                           dataBuffer[dataBufferCounter-7],
+                                           dataBuffer[dataBufferCounter-6],
+                                           dataBuffer[dataBufferCounter-5],
+                                           dataBuffer[dataBufferCounter-4],
+                                           dataBuffer[dataBufferCounter-3],
+                                           dataBuffer[dataBufferCounter-2],
+                                           dataBuffer[dataBufferCounter-1]});
             break;
 
             // If there's 4 pins enabled, readings take up 10 bytes.
@@ -1252,26 +1238,24 @@ inline void completeSensorReading()
               #ifdef MCHECK_MODE
                 if(dataBufferCounter != 10)
                 {
-                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading,
-                                        {(uint8_t)((dataBufferCounter >> 8) & 0xff),
-                                        (uint8_t) (dataBufferCounter       & 0xff),
-                                        memoryMode});
+                    debugDumpWithStack(ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading, {
+                                           (uint8_t)((dataBufferCounter >> 8) & 0xff),
+                                           (uint8_t) (dataBufferCounter       & 0xff),
+                                                      memoryMode});
                     break;
                 }
               #endif
-                writeSerialBytes((const uint8_t[]){
-                    (COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
-                    dataBuffer[dataBufferCounter-10],
-                    dataBuffer[dataBufferCounter-9],
-                    dataBuffer[dataBufferCounter-8],
-                    dataBuffer[dataBufferCounter-7],
-                    dataBuffer[dataBufferCounter-6],
-                    dataBuffer[dataBufferCounter-5],
-                    dataBuffer[dataBufferCounter-4],
-                    dataBuffer[dataBufferCounter-3],
-                    dataBuffer[dataBufferCounter-2],
-                    dataBuffer[dataBufferCounter-1],
-                });
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                                           dataBuffer[dataBufferCounter-10],
+                                           dataBuffer[dataBufferCounter-9],
+                                           dataBuffer[dataBufferCounter-8],
+                                           dataBuffer[dataBufferCounter-7],
+                                           dataBuffer[dataBufferCounter-6],
+                                           dataBuffer[dataBufferCounter-5],
+                                           dataBuffer[dataBufferCounter-4],
+                                           dataBuffer[dataBufferCounter-3],
+                                           dataBuffer[dataBufferCounter-2],
+                                           dataBuffer[dataBufferCounter-1]});
             break;
 
           #ifdef MCHECK_MODE
@@ -1326,10 +1310,10 @@ inline void pollDigitalPins()
 
   #ifdef MCHECK_MODE
     // If the Arduino isn't currently taking a poll reading, report an error.
-    const uint8_t currentReadingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
-    if(currentReadingType != READING_TYPE_POLLING)
+    const uint8_t readingType = statusFlags & CURRENT_READING_TYPE_BITMASK;
+    if(readingType != READING_TYPE_POLLING)
     {
-        debugDumpWithStack(ERROR_INVALID_READING_pollDigitalPins, {currentReadingType});
+        debugDumpWithStack(ERROR_INVALID_READING_pollDigitalPins, {readingType});
     }
   #endif
 
@@ -1350,10 +1334,8 @@ inline void pollDigitalPins()
     // If there was at least 1 match, send the matches bitarray to the client.
     if(matches != 0)
     {
-        writeSerialBytes({
-            (uint8_t)(COMMAND_SOURCE_SERIAL | COMMAND_START_POLL_READING),
-            matches
-        });
+        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_SERIAL | COMMAND_START_POLL_READING),
+                                   matches});
     }
 
   #ifdef MDEBUG_MODE
@@ -1432,7 +1414,7 @@ inline uint8_t getSensorID(const uint16_t voltageReading)// TODO THE VALUES IN T
     debugLogWithStack(INFO_START_getSensorID, {(uint8_t)((voltageReading >> 8) & 0xff),
                                                (uint8_t) (voltageReading       & 0xff)});
   #endif
-
+//TODO make this work
     // Try determining the sensor type with the ID voltage alone.
     if((88 < voltageReading) && (voltageReading < 98)) // 0.43 < idV < 0.48
     {
@@ -1571,10 +1553,8 @@ inline void serialPanicMode()//TODO decide on better behavior for this!!!
     stopAnalogReadings();
 
     // Send a 'serial panic' error to the client to alert it that the connection needs to be re-established.
-    writeSerialBytes((const uint8_t[]){
-        (COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
-        0//ERROR_SERIAL_PANIC//TODO THIS COMMAND ISN'T SUPPORTED IN THE HEADER FILE ANYMORE!
-    });
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
+                               0});//ERROR_SERIAL_PANIC
     // Flush any bytes still in the serial output buffer.
     Serial.flush();
 
