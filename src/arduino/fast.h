@@ -111,7 +111,7 @@
         const uint8_t READING_TYPE_IDENTIFY      = B00000101; //5
 //      Reading types 6 and 7 are unused
     // This bitmask is used to determine if the currently running reading should be stopped. The flag it masks for
-    // indicates the client has signaled for whatever reading is currently running to be ended.
+    // indicates that the client has signaled for whatever reading is currently running to be ended.
     // To get whether readings should be stopped, use `(READING_IN_PROGRESS_BITMASK & statusFlags)`.
     const uint8_t STOP_CURRENT_READING_BITMASK = B00001000;
     // These bitmasks are used to determine if there was an interrupt that the main loop needs to handle.
@@ -180,8 +180,8 @@
         const uint8_t COMMAND_START_POLL_READING  = 13;
         const uint8_t COMMAND_SCAN_SENSORS        = 14;
         const uint8_t COMMAND_STOP_READING        = 15;
-    // These command bytes are used to initiaze the serial connection used between the Arduino and the client, and
-    // to indicate states specific to the status and integregity of the connection. They should always be sent with the
+    // These command bytes are used to initialize the serial connection used between the Arduino and the client, and
+    // to indicate states specific to the status and integrity of the connection. They should always be sent with the
     // `COMMAND_SOURCE_SERIAL` command prefix.
         const uint8_t COMMAND_SERIAL_DISCOVER = B1010;
         const uint8_t COMMAND_SERIAL_ACCEPT   = B0101;
@@ -195,9 +195,9 @@
         const uint8_t COMMAND_SOURCE_ARDUINO = B11010000;
         // Prefix marker that denotes a packet as being about the serial connection itself.
         const uint8_t COMMAND_SOURCE_SERIAL = B01100000;
-    
+
     // Bitmask for getting the kind of a sensor (whether it's analog or digital).
-    // It should be used like `(SENSOR_TYPE_BITMASK & sensorID)`.
+    // To get the kind use `(SENSOR_TYPE_BITMASK & sensorID)`.
     const uint8_t SENSOR_TYPE_BITMASK = B10000000;
         // Prefix marker that indicates a sensor is analog.
         const uint8_t SENSOR_TYPE_ANALOG = B00000000;
@@ -296,10 +296,10 @@
     // To get whether it does, use `(ADDITIONAL_PAYLOAD_BITMASK & debugCode)`. If true there's additional payload data.
     const uint8_t ADDITIONAL_PAYLOAD_BITMASK = B01000000;
     // Debug codes; These are sent to the client to either provide logging information or indicate an error has
-    // occured. These codes are sent as the first payload byte after a `DEBUG_LOG` command byte.
+    // occurred. These codes are sent as a payload byte after a `DEBUG_LOG` command byte.
     // The first bit of every debug code indicates whether it's informational (0) or represents an error (1), and
     // the second bit is set to 1 if there's additional stack data in the payload. Note this doesn't include the usual
-    // payload sent for error codes containing a dump of the Arduino's registers and the programs gloval variables.
+    // payload sent for error codes containing a dump of the Arduino's registers and the program's global variables.
       #ifdef MDEBUG_MODE
 //      const uint8_t INFO_CODE_RESERVED_0                      = 0;
         const uint8_t INFO_START_SETUP                          = 1;
@@ -490,7 +490,7 @@
           * being removed, changed, or a new sensor was plugged in to any ports, this notifies the client of it. **/
         void scanSensors();
         /** Stops any currently running readings. If the Arduino is in the process of taking a reading, it waits until
-          * the current individual reading has finished, discards the result, and disables the reading. **/
+          * the current reading has finished, discards the result, and then stops the reading. **/
         void stopReading();
 
     /** Configures the analog pins attached to a specified port based on the type of sensor connected to it.
@@ -521,7 +521,7 @@
     void completeSensorReading();
 
     /** Checks all digital input pins against their respective polling conditions (whether the pin is high or low).
-      * The client if notified of any pins that satisfy their condition in a timestamped message. **/
+      * The client is notified of any pins that satisfy their condition with a timestamped message. **/
     void pollDigitalPins();
 
     /** Starts a new analog reading on the specified analog pin.
@@ -533,7 +533,7 @@
 
     /** Gets the sensor ID corresponding to the provided ID voltage. Every type of Vernier sensor has a unique range of
       * voltages that can be read from it's ID pin. This voltage can be read from the sensor and used to determine what
-      * kind of sensor it must be.
+      * sensor it is.
       * @param voltageReading: The value read from the sensor's ID line as measured by the ADC (between 0 and 1024).
       * @return: The sensor ID code corresponding to the specified voltage. **/
     uint8_t getSensorID(const uint16_t voltageReading);
