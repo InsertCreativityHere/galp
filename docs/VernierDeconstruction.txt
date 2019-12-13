@@ -1,0 +1,46 @@
+
+Link to the Mux chip the Vernier adapter uses:
+https://toshiba.semicon-storage.com/info/docget.jsp?did=37237&prodName=74HC4052D&usg=AOvVaw2R5wBc8xcRLQrGEjA1Z9Ll
+
+
+
+
+
+
+
+
+
+    /** Starts a batch reading on the specified port. If there is no sensor attached to the port, this immediately
+        returns a closed buffer. Values will be read into the buffer once per sample period until manually stopped.
+        @param port: The port to start the batch reading on.
+        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
+                 as they're received from the sensor. When the reading is stopped, the buffer will be marked closed.**
+    public DoubleBuffer startBatchReading(int port);
+
+    /** Starts a batch reading on the specified port. If there is no sensor attached to the port, this immediately
+        returns a closed buffer. The specified number of values will be read from the sensor, one per sample period,
+        unless the reading is prematurely manually stopped. Once count many readings have been taken, the buffer is
+        marked as closed.
+        @param port: The port to start the batch reading on.
+        @param count: The number of readings to take.
+        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
+                 as they're received from the sensor. When count many readings have been taken, or the batch has been
+                 manually stopped, the buffer is marked as closed.**
+    public DoubleBuffer startBatchReading(int port, int count);
+
+    /** Starts a batch reading on the specified port when the start trigger evaluates as true, and continues reading
+        until either the end trigger evaluates as true, or the reading is manually stopped. If there is no sensor
+        attached to the port, this immediately returns a closed buffer. A reading is taken from the sensor once per
+        sample period, and when the end trigger evaluates true, the buffer is marked as closed.
+        @param port: The port to start the batch reading on.
+        @param start: Trigger condition that specifies when to start the readings.
+        @param end: Trigger condition that specified when to end the readings.
+        @return: Immediately returns a DoubleBuffer in streaming mode. The buffer will be updated with new values
+                 as they're received from the sensor. When the end trigger evaluates true, or the batch has been
+                 manually stopped, the buffer is marked as closed. **
+    public DoubleBuffer startBatchReading(int port, Trigger start, Trigger end);
+
+    /** Manually terminates a batch reading. This will immediately cancel the session, regardless of any
+        triggers or specified reading counts. Any already recorded data will still remain in it's buffer.
+        @param port: The port to stop reading on. **
+    public void stopBatchReading(int port);
