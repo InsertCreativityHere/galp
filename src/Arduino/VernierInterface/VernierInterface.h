@@ -2,17 +2,16 @@
 #ifndef FAST_H_INCLUDE
 #define FAST_H_INCLUDE
 
-#define MAVERAGE_COUNT 5
-#define MCHECK_MODE
-#define MDEBUG_MODE
-
 //===== Macros =====//
 
   // If a baud rate for the serial connection wasn't set in the compiler, use a default rate of 9600bps.
   #ifdef MBAUD_RATE
-    // Ensure BAUD_RATE is a positive number.
+    // Ensure BAUD_RATE is a positive number less than 4294967296.
     #if(MBAUD_RATE <= 0)
       #error BAUD_RATE must be a positive integer!
+    #endif
+    #if(MBAUD_RATE >= 4294967296)
+      #error BAUD_RATE must be less than 4294967296!
     #endif
     const uint32_t BAUD_RATE = MBAUD_RATE;
   #else
@@ -21,9 +20,12 @@
 
   // If a size for the data buffer wasn't set in the compiler, use a default size of 256 bytes.
   #ifdef MDATA_BUFFER_SIZE
-    // Ensure DATA_BUFFER_SIZE is a positive number.
+    // Ensure DATA_BUFFER_SIZE is a positive number less than 65536.
     #if(MDATA_BUFFER_SIZE <= 0)
       #error DATA_BUFFER_SIZE must be a positive integer!
+    #endif
+    #if(MDATA_BUFFER_SIZE >= 65536)
+      #error DATA_BUFFER_SIZE must be less than 65536!
     #endif
     const uint16_t DATA_BUFFER_SIZE = MDATA_BUFFER_SIZE;
   #else
@@ -32,9 +34,12 @@
 
   // If an average count wasn't set in the compiler, then (by default) averaging is completely disabled.
   #ifdef MAVERAGE_COUNT
-    // Ensure AVERAGE_COUNT is a positive number.
+    // Ensure AVERAGE_COUNT is a positive number less than or equal to 64.
     #if(MAVERAGE_COUNT <= 0)
       #error AVERAGE_COUNT must be a positive integer!
+    #endif
+    #if(MAVERAGE_COUNT > 64)
+      #error AVERAGE_COUNT must be less than or equal to 64!
     #endif
     const uint8_t AVERAGE_COUNT = MAVERAGE_COUNT;
   #else
