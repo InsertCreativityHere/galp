@@ -72,6 +72,7 @@
     const uint8_t PORT_DIGITAL_2_ENABLED_BITMASK = B00001000;
     // This bitmask retrieves the entire section of `enabledFlags` that pertains to which ports are enabled or not.
     const uint8_t PORT_ALL_ENABLED_BITMASK = B00001111;
+
     // These bitmasks are used for getting which analog pins on the Arduino are currently enabled.
     // Only pins that are enabled will be measured during sensor readings, and all enabled ports will be read from.
     // Usuaully which pins are enabled is determined by the type of sensor, different sensors use different pins, and
@@ -163,12 +164,12 @@
         const uint8_t ADMUX_PIN_ADDRESS_A5 = B00000101; //5
 //      Addresses 6~15 are only available on larger Arduinos.
 
+    /** Command bytes: These are sent between the client and the Arduino to relay information and instructions to one
+      * another and make up the first byte of any packet. They consist of a source header that encodes where the packet
+      * is being sent from, and a command code to let the receiver know what the content of the packet is. **/
     // Bitmask for getting the command code. It should be used like `(commandByte & COMMAND_CODE_BITMASK)`.
     const uint8_t COMMAND_CODE_BITMASK = B00001111;
-        // Commands bytes; These are sent between the client and the Arduino to relay information and instructions to
-        // one another and make up the first byte of every packet. These consist of a source marker that denotes
-        // whether the packet was sent from the client or the Arduino, followed by a command code which encodes the
-        // actual command. A list of all supported command codes is as follows:
+        // A list of all supported command codes.
         const uint8_t COMMAND_DEBUG_LOG           = 0;
         const uint8_t COMMAND_GET_SAMPLE_PERIOD   = 1;
         const uint8_t COMMAND_SET_SAMPLE_PERIOD   = 2;
@@ -192,12 +193,12 @@
         const uint8_t COMMAND_SERIAL_ACCEPT       = 30;
         const uint8_t COMMAND_SERIAL_READY        = 31;
 //      Command codes 18~27 are unused.
-    // Bitmask for getting the source of the command. It should be used like `(commandByte & COMMAND_SOURCE_BITMASK)`.
-    const uint8_t COMMAND_SOURCE_BITMASK = B11100000;
+    // Bitmask for getting the source of a packet. It should be used like `(commandByte & PACKET_SOURCE_BITMASK)`.
+    const uint8_t PACKET_SOURCE_BITMASK = B11100000;
         // Prefix marker that denotes a packet was sent from the client to the Arduino.
-        const uint8_t COMMAND_SOURCE_CLIENT = B01100000;
+        const uint8_t PACKET_SOURCE_CLIENT = B01100000;
         // Prefix marker that denotes a packet was sent from the Arduino to the client.
-        const uint8_t COMMAND_SOURCE_ARDUINO = B10100000;
+        const uint8_t PACKET_SOURCE_ARDUINO = B10100000;
 
     // Bitmask for getting the kind of a sensor (whether it's analog or digital).
     // To get the kind use `(sensorID & SENSOR_TYPE_BITMASK)`.

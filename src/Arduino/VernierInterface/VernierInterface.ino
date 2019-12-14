@@ -45,7 +45,7 @@ void setup()
   #endif
 
     // Respond with a SERIAL_READY and ensure that it was sent properly.
-    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    if(Serial.write(PACKET_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
     {
         // Continually flash the onboard LED to indicate an error.
         while(true)
@@ -162,9 +162,9 @@ inline void processClientCommands()
 
     const uint8_t command = Serial.read();
     // If the first byte isn't a command byte from the Arduino, report an error and enter serial panic mode.
-    if((command & COMMAND_SOURCE_BITMASK) != COMMAND_SOURCE_CLIENT)
+    if((command & PACKET_SOURCE_BITMASK) != PACKET_SOURCE_CLIENT)
     {
-        debugDumpWithStack(ERROR_ILLEGAL_COMMAND_SOURCE_processClientCommands, {command});
+        debugDumpWithStack(ERROR_ILLEGAL_PACKET_SOURCE_processClientCommands, {command});
         serialPanicMode();
         return;
     }
@@ -218,7 +218,7 @@ inline void getSamplePeriod()
   #endif
 
     // Write the sample period into the serial output buffer.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_SAMPLE_PERIOD),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_SAMPLE_PERIOD),
                       (uint8_t)((samplePeriod >> 24) & 0xff),
                       (uint8_t)((samplePeriod >> 16) & 0xff),
                       (uint8_t)((samplePeriod >> 8)  & 0xff),
@@ -322,7 +322,7 @@ inline void getPortStates()
   #endif
 
     // Write the portion of `enabledFlags` storing the states of the Vernier ports into the serial output buffer.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_PORT_STATES),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_PORT_STATES),
                       (uint8_t)(enabledFlags & PORT_ALL_ENABLED_BITMASK)});
 
   #ifdef MDEBUG_MODE
@@ -361,7 +361,7 @@ inline void getAnalogPinStates()
   #endif
 
     // Write the portion of `enabledFlags` storing the states of the analog pins into the serial output buffer.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_APIN_STATES),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_APIN_STATES),
                       (uint8_t)(enabledFlags & APIN_ALL_ENABLED_BITMASK)});
 
   #ifdef MDEBUG_MODE
@@ -400,7 +400,7 @@ inline void getDigitalPinModes()
   #endif
 
     // Write the `pinModeFlags` bitarray into the serial output buffer.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_DPIN_MODES),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_DPIN_MODES),
                                pinModeFlags});
 
   #ifdef MDEBUG_MODE
@@ -439,7 +439,7 @@ inline void getDigitalPinOutputs()
   #endif
 
     // Write the `outputValues` bitarray into the serial output buffer.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_DPIN_OUTPUTS),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_DPIN_OUTPUTS),
                                outputValues});
 
   #ifdef DEBUG_MODE
@@ -480,7 +480,7 @@ inline void getSensorIDs()
   #endif
 
     // Write the sensor IDs to the serial output buffer in order.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_SENSOR_IDS),
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_GET_SENSOR_IDS),
                                sensorIDs[0],
                                sensorIDs[1],
                                sensorIDs[2],
@@ -1037,7 +1037,7 @@ inline void handleAnalogSensorIDReading()
     {
         sensorIDs[portAddress] = sensorID;
         // Notify the client of the new sensorID and the port it's connected to.
-        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_SET_SENSOR_ID),
+        writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_SET_SENSOR_ID),
                                    portAddress,
                                    sensorID});
     }
@@ -1387,7 +1387,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-5],
                                            dataBuffer[dataBufferCounter-4],
                                            dataBuffer[dataBufferCounter-3],
@@ -1407,7 +1407,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-7],
                                            dataBuffer[dataBufferCounter-6],
                                            dataBuffer[dataBufferCounter-5],
@@ -1429,7 +1429,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-8],
                                            dataBuffer[dataBufferCounter-7],
                                            dataBuffer[dataBufferCounter-6],
@@ -1452,7 +1452,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-9],
                                            dataBuffer[dataBufferCounter-8],
                                            dataBuffer[dataBufferCounter-7],
@@ -1476,7 +1476,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
+                writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-10],
                                            dataBuffer[dataBufferCounter-9],
                                            dataBuffer[dataBufferCounter-8],
@@ -1565,7 +1565,7 @@ inline void pollDigitalPins()
     // If there was at least 1 match, send the matches bitarray to the client.
     if(matches != 0)
     {
-        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_START_POLL_READING),
+        writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_START_POLL_READING),
                                    matches});
     }
 
@@ -1734,14 +1734,14 @@ inline void establishSerialConnection()
     // Wait until a SERIAL_BROADCAST command is received by the client.
     while(true)
     {
-        if(Serial.available() && (Serial.read() == (COMMAND_SOURCE_CLIENT | COMMAND_SERIAL_BROADCAST)))
+        if(Serial.available() && (Serial.read() == (PACKET_SOURCE_CLIENT | COMMAND_SERIAL_BROADCAST)))
         {
             break;
         }
     }
 
     // Respond with a SERIAL_ACCEPT and ensure that it was sent properly.
-    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    if(Serial.write(PACKET_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
     {
         // Continually flash the onboard LED to indicate an error.
         while(true)
@@ -1763,7 +1763,7 @@ inline void establishSerialConnection()
     // Wait until a SERIAL_READY command is received from the client, and echo it back to the client.
     while(true)
     {
-        if(Serial.available() && (Serial.read() == (COMMAND_SOURCE_CLIENT | COMMAND_SERIAL_READY)))
+        if(Serial.available() && (Serial.read() == (PACKET_SOURCE_CLIENT | COMMAND_SERIAL_READY)))
         {
             break;
         }
@@ -1837,7 +1837,7 @@ inline void serialPanicMode()
     }
 
     // Send a 'serial panic' error to the client to alert it that the connection needs to be re-established.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_PANIC)});
+    writeSerialBytes({(uint8_t)(PACKET_SOURCE_ARDUINO | COMMAND_SERIAL_PANIC)});
     // Flush any bytes still in the serial output buffer.
     Serial.flush();
 
@@ -1862,7 +1862,7 @@ inline void serialPanicMode()
     Serial.end();
     establishSerialConnection();
     // Respond with a SERIAL_READY and ensure that it was sent properly.
-    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    if(Serial.write(PACKET_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
     {
         // Continually flash the onboard LED to indicate an error.
         while(true)
@@ -1886,7 +1886,7 @@ inline void debugLog(const uint8_t debugCode)
     const uint32_t time = micros();
     // Write the log message into the serial buffer so it'll be sent to the client.
     const uint8_t message[] = {
-        (COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
+        (PACKET_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
         debugCode,
         (uint8_t)((time >> 24) & 0xff),
         (uint8_t)((time >> 16) & 0xff),
@@ -1928,7 +1928,7 @@ inline void debugDump(const uint8_t debugCode)
     const uint32_t time = micros();
     // Write the log message and dump into the serial buffer so it'll be sent to the client.
     const uint8_t message[] = {
-        (COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
+        (PACKET_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
         debugCode,
         (uint8_t)((time >> 24) & 0xff),
         (uint8_t)((time >> 16) & 0xff),
