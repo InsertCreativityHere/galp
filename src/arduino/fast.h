@@ -173,28 +173,26 @@
         const uint8_t COMMAND_SET_APIN_STATES     = 6;
         const uint8_t COMMAND_GET_DPIN_MODES      = 7;
         const uint8_t COMMAND_SET_DPIN_MODES      = 8;
-        const uint8_t COMMAND_GET_SENSOR_IDS      = 9;
-        const uint8_t COMMAND_SET_SENSOR_ID       = 10;
-        const uint8_t COMMAND_TAKE_SINGLE_READING = 11;
-        const uint8_t COMMAND_START_BATCH_READING = 12;
-        const uint8_t COMMAND_START_POLL_READING  = 13;
-        const uint8_t COMMAND_SCAN_SENSORS        = 14;
-        const uint8_t COMMAND_STOP_READING        = 15;
-    // These command bytes are used to initialize the serial connection used between the Arduino and the client, and
-    // to indicate states specific to the status and integrity of the connection. They should always be sent with the
-    // `COMMAND_SOURCE_SERIAL` command prefix.
-        const uint8_t COMMAND_SERIAL_DISCOVER = B1010;
-        const uint8_t COMMAND_SERIAL_ACCEPT   = B0101;
-        const uint8_t COMMAND_SERIAL_READY    = B1100;
-        const uint8_t COMMAND_SERIAL_PANIC    = B0011;
+        const uint8_t COMMAND_GET_DPIN_OUTPUTS    = 9;
+        const uint8_t COMMAND_SET_DPIN_OUTPUTS    = 10;
+        const uint8_t COMMAND_GET_SENSOR_IDS      = 11;
+        const uint8_t COMMAND_SET_SENSOR_ID       = 12;
+        const uint8_t COMMAND_TAKE_SINGLE_READING = 13;
+        const uint8_t COMMAND_START_BATCH_READING = 14;
+        const uint8_t COMMAND_START_POLL_READING  = 15;
+        const uint8_t COMMAND_SCAN_SENSORS        = 16;
+        const uint8_t COMMAND_STOP_READING        = 17;
+        const uint8_t COMMAND_SERIAL_PANIC        = 28;
+        const uint8_t COMMAND_SERIAL_BROADCAST    = 29;
+        const uint8_t COMMAND_SERIAL_ACCEPT       = 30;
+        const uint8_t COMMAND_SERIAL_READY        = 31;
+//      Command codes 18~27 are unused.
     // Bitmask for getting the source of the command. It should be used like `(COMMAND_SOURCE_BITMASK & commandByte)`.
-    const uint8_t COMMAND_SOURCE_BITMASK = B11110000;
+    const uint8_t COMMAND_SOURCE_BITMASK = B11100000;
         // Prefix marker that denotes a packet was sent from the client to the Arduino.
-        const uint8_t COMMAND_SOURCE_CLIENT = B00110000;
+        const uint8_t COMMAND_SOURCE_CLIENT = B01100000;
         // Prefix marker that denotes a packet was sent from the Arduino to the client.
-        const uint8_t COMMAND_SOURCE_ARDUINO = B11010000;
-        // Prefix marker that denotes a packet as being about the serial connection itself.
-        const uint8_t COMMAND_SOURCE_SERIAL = B01100000;
+        const uint8_t COMMAND_SOURCE_ARDUINO = B10100000;
 
     // Bitmask for getting the kind of a sensor (whether it's analog or digital).
     // To get the kind use `(SENSOR_TYPE_BITMASK & sensorID)`.
@@ -301,68 +299,70 @@
     // the second bit is set to 1 if there's additional stack data in the payload. Note this doesn't include the usual
     // payload sent for error codes containing a dump of the Arduino's registers and the program's global variables.
       #ifdef MDEBUG_MODE
-//      const uint8_t INFO_CODE_RESERVED_0                      = 0;
-        const uint8_t INFO_START_SETUP                          = 1;
-        const uint8_t INFO_END_SETUP                            = 2;
-        const uint8_t INFO_START_LOOP                           = 3;
-        const uint8_t INFO_NONE_processClientCommands           = 4;
-        const uint8_t INFO_START_processClientCommands          = 5;
-        const uint8_t INFO_END_processClientCommands            = 6;
-        const uint8_t INFO_START_getSamplePeriod                = 7;
-        const uint8_t INFO_END_getSamplePeriod                  = 8;
-        const uint8_t INFO_START_setSamplePeriod                = 9;
-        const uint8_t INFO_END_setSamplePeriod                  = 10;
-        const uint8_t INFO_START_getPortStates                  = 11;
-        const uint8_t INFO_END_getPortStates                    = 12;
-        const uint8_t INFO_START_setPortStates                  = 13;
-        const uint8_t INFO_END_setPortStates                    = 14;
-        const uint8_t INFO_START_getAnalogPinStates             = 15;
-        const uint8_t INFO_END_getAnalogPinStates               = 16;
-        const uint8_t INFO_START_setAnalogPinStates             = 17;
-        const uint8_t INFO_END_setAnalogPinStates               = 18;
-        const uint8_t INFO_START_getDigitalPinModes             = 19;
-        const uint8_t INFO_END_getDigitalPinModes               = 20;
-        const uint8_t INFO_START_setDigitalPinModes             = 21;
-        const uint8_t INFO_END_setDigitalPinModes               = 22;
-        const uint8_t INFO_START_getSensorIDs                   = 23;
-        const uint8_t INFO_END_getSensorIDs                     = 24;
-        const uint8_t INFO_START_setSensorIDs                   = 25;
-        const uint8_t INFO_END_setSensorIDs                     = 26;
-        const uint8_t INFO_START_takeSingleReading              = 27;
-        const uint8_t INFO_END_takeSingleReading                = 28;
-        const uint8_t INFO_START_startBatchReading              = 29;
-        const uint8_t INFO_END_startBatchReading                = 30;
-        const uint8_t INFO_START_startPollReading               = 31;
-        const uint8_t INFO_END_startPollReading                 = 32;
-        const uint8_t INFO_START_stopReading                    = 33;
-        const uint8_t INFO_END_stopReading                      = 34;
-        const uint8_t INFO_START_scanSensors                    = 35;
-        const uint8_t INFO_END_scanSensors                      = 36;
-        const uint8_t INFO_START_configureSensorPins            = 37 | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t INFO_END_configureSensorPins              = 38;
-        const uint8_t INFO_NONE_checkTIMER1Interrupt            = 39;
-        const uint8_t INFO_START_checkTIMER1Interrupt           = 40;
-        const uint8_t INFO_END_checkTIMER1Interrupt             = 41;
-        const uint8_t INFO_NONE_checkADCInterrupt               = 42;
-        const uint8_t INFO_START_checkADCInterrupt              = 43;
-        const uint8_t INFO_END_checkADCInterrupt                = 44;
-        const uint8_t INFO_START_handleAnalogSensorValueReading = 45;
-        const uint8_t INFO_END_handleAnalogSensorValueReading   = 46;
-        const uint8_t INFO_START_handleAnalogSensorIDReading    = 47;
-        const uint8_t INFO_END_handleAnalogSensorIDReading      = 48;
-        const uint8_t INFO_START_startNewSensorReading          = 49;
-        const uint8_t INFO_END_startNewSensorReading            = 50;
-        const uint8_t INFO_START_completeSensorReading          = 51;
-        const uint8_t INFO_END_completeSensorReading            = 52;
-        const uint8_t INFO_START_pollDigitalPins                = 53;
-        const uint8_t INFO_END_pollDigitalPins                  = 54;
-        const uint8_t INFO_START_startAnalogReading             = 55 | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t INFO_END_startAnalogReading               = 56;
-        const uint8_t INFO_START_stopAnalogReadings             = 57;
-        const uint8_t INFO_END_stopAnalogReadings               = 58;
-        const uint8_t INFO_START_getSensorID                    = 59 | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t INFO_END_getSensorID                      = 60;
-//      Informational debug codes 61~63 are unused.
+        const uint8_t INFO_START_SETUP                          = 0  | DEBUG_CODE_TYPE_ERROR;
+        const uint8_t INFO_END_SETUP                            = 1;
+        const uint8_t INFO_START_LOOP                           = 2;
+        const uint8_t INFO_NONE_processClientCommands           = 3;
+        const uint8_t INFO_START_processClientCommands          = 4;
+        const uint8_t INFO_END_processClientCommands            = 5;
+        const uint8_t INFO_START_getSamplePeriod                = 6;
+        const uint8_t INFO_END_getSamplePeriod                  = 7;
+        const uint8_t INFO_START_setSamplePeriod                = 8;
+        const uint8_t INFO_END_setSamplePeriod                  = 9;
+        const uint8_t INFO_START_getPortStates                  = 10;
+        const uint8_t INFO_END_getPortStates                    = 11;
+        const uint8_t INFO_START_setPortStates                  = 12;
+        const uint8_t INFO_END_setPortStates                    = 13;
+        const uint8_t INFO_START_getAnalogPinStates             = 14;
+        const uint8_t INFO_END_getAnalogPinStates               = 15;
+        const uint8_t INFO_START_setAnalogPinStates             = 16;
+        const uint8_t INFO_END_setAnalogPinStates               = 17;
+        const uint8_t INFO_START_getDigitalPinModes             = 18;
+        const uint8_t INFO_END_getDigitalPinModes               = 19;
+        const uint8_t INFO_START_setDigitalPinModes             = 20;
+        const uint8_t INFO_END_setDigitalPinModes               = 21;
+        const uint8_t INFO_START_getDigitalPinOutputs           = 22;
+        const uint8_t INFO_END_getDigitalPinOutputs             = 23;
+        const uint8_t INFO_START_setDigitalPinOutputs           = 24;
+        const uint8_t INFO_END_setDigitalPinOutputs             = 25;
+        const uint8_t INFO_START_getSensorIDs                   = 26;
+        const uint8_t INFO_END_getSensorIDs                     = 27;
+        const uint8_t INFO_START_setSensorIDs                   = 28;
+        const uint8_t INFO_END_setSensorIDs                     = 29;
+        const uint8_t INFO_START_takeSingleReading              = 30;
+        const uint8_t INFO_END_takeSingleReading                = 31;
+        const uint8_t INFO_START_startBatchReading              = 32;
+        const uint8_t INFO_END_startBatchReading                = 33;
+        const uint8_t INFO_START_startPollReading               = 34;
+        const uint8_t INFO_END_startPollReading                 = 35;
+        const uint8_t INFO_START_stopReading                    = 36;
+        const uint8_t INFO_END_stopReading                      = 37;
+        const uint8_t INFO_START_scanSensors                    = 38;
+        const uint8_t INFO_END_scanSensors                      = 39;
+        const uint8_t INFO_START_configureSensorPins            = 40 | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t INFO_END_configureSensorPins              = 41;
+        const uint8_t INFO_NONE_checkTIMER1Interrupt            = 42;
+        const uint8_t INFO_START_checkTIMER1Interrupt           = 43;
+        const uint8_t INFO_END_checkTIMER1Interrupt             = 44;
+        const uint8_t INFO_NONE_checkADCInterrupt               = 45;
+        const uint8_t INFO_START_checkADCInterrupt              = 46;
+        const uint8_t INFO_END_checkADCInterrupt                = 47;
+        const uint8_t INFO_START_handleAnalogSensorValueReading = 48;
+        const uint8_t INFO_END_handleAnalogSensorValueReading   = 49;
+        const uint8_t INFO_START_handleAnalogSensorIDReading    = 50;
+        const uint8_t INFO_END_handleAnalogSensorIDReading      = 51;
+        const uint8_t INFO_START_startNewSensorReading          = 52;
+        const uint8_t INFO_END_startNewSensorReading            = 53;
+        const uint8_t INFO_START_completeSensorReading          = 54;
+        const uint8_t INFO_END_completeSensorReading            = 55;
+        const uint8_t INFO_START_pollDigitalPins                = 56;
+        const uint8_t INFO_END_pollDigitalPins                  = 57;
+        const uint8_t INFO_START_startAnalogReading             = 58 | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t INFO_END_startAnalogReading               = 59;
+        const uint8_t INFO_START_stopAnalogReadings             = 60;
+        const uint8_t INFO_END_stopAnalogReadings               = 61;
+        const uint8_t INFO_START_getSensorID                    = 62 | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t INFO_END_getSensorID                      = 63;
       #endif
         const uint8_t ERROR_ILLEGAL_READING_TYPE_loop                          = 0  | DEBUG_CODE_TYPE_ERROR;
         const uint8_t ERROR_ILLEGAL_COMMAND_SOURCE_processClientCommands       = 1  | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
@@ -418,6 +418,9 @@
     // Bitarray that stores the current mode of the digital pins the Vernier Interface uses (2,3,4,5,6,7,8,9).
     // 0 indicates output mode, and 1 indicates input mode. At startup all digital pins are in input mode.
     uint8_t pinModeFlags = B11111111;
+    // Bitarray that stores the values being output by the digital pins that the Vernier interface uses
+    // (pins 2,3,4,5,6,7,8,9). At startup all the digital pins are set low (0).
+    uint8_t outputValues = B00000000;
     // Bitarray that stores various settings and states of the program while it's running.
     // The first 2 bits store the current reading type, bits 3 & 4 are flags for whether there's been an interrupt from
     // the ADC or TIMER1 respectively, bits 5 & 6 are flags indicating if an interrupt was accidentally skipped and
@@ -472,6 +475,10 @@
         void getDigitalPinModes();
         /** Reads two bytes from the serial connection and uses them to manually override the digital pin modes. **/
         void setDigitalPinModes();
+        /** Sends the client the current values being output by digital pins 2,3,4,5,6,7,8,9 in order. **/
+        void getDigitalPinOutputs();
+        /** Reads 2 bytes from the serial connection and uses them to set the output values of the digital pins. **/
+        void setDigitalPinOutputs();
         /** Sends the client the IDs of the sensor connected to each port (0 indicates no sensor is connected). **/
         void getSensorIDs();
         /** Reads 2 bytes from the serial connection and manually overrides a port's connected sensor ID with them. **/
@@ -537,6 +544,13 @@
       * @param voltageReading: The value read from the sensor's ID line as measured by the ADC (between 0 and 1024).
       * @return: The sensor ID code corresponding to the specified voltage. **/
     uint8_t getSensorID(const uint16_t voltageReading);
+
+    /** Establishes a serial connection with the client. This function blocks until the connection is established and
+      * both the client and the Arduino have verified the connection and are ready for communication. After calling
+      * this function, the Arduino must later send a 'SERIAL_READY' command to the client. This function does not send
+      * 'SERIAL_READY' in case additional setup needs to be performed before the Arduino is can handle client commands
+      * and output. This function does wait until 'SERIAL_READY' is received from the client however. **/
+    void establishSerialConnection();
 
     /** Convenience method for reading bytes in from the serial port. If the correct number of bytes can't be read or
       * an error is detected in the serial input, this function calls `serialPanicMode` and waits until a known serial

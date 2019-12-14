@@ -1,17 +1,64 @@
 
 #include "fast.h"
 
+/** This function gets called once when the program first starts. It initializes the serial connection and configures
+  * various registers that the program uses. **/
 void setup()
 {
+    establishSerialConnection();
+
   #ifdef MDEBUG_MODE
-    debugLog(INFO_START_SETUP);
+    debugDump(INFO_START_SETUP);
   #endif
 
-    // TODO
+    // Set analog pins A0,A1,A2,A3,A4,A5 to input mode without changing bit 6 or 7.
+    DDRC &= B11000000;
+    // Set pins 2,3,4,5,6,7,8,9,12 to input mode and pins 10,11,13 to output mode without changing pins 0,1,14,15.
+    DDRB = (DDRB & B11000000) | B00010011;
+    DDRD |= B11111100;
+
+    // Disable pullup resistors (and set the output value to 0) on pins 2,3,4,5,6,7,8,9,10,11,13 and enable the pullup
+    // resistor on pin 12 (the on-board push button).
+    PORTB = (PORTB & B11000000) | B00010000;
+    PORTD &= B00000011;
+
+    // Disable PWM output from TIMER1 and set it to run in Clear on Timer Compare (CTC) mode.
+    TCCR1A = B00000000;
+    // Stop the counter by setting it's prescalar to 0.
+    TCCR1B = B00000000;
+    // Disable TIMER1 interrupts.
+    TIMSK1 = B00000000;
+
+    // Disable digital readings on analog pins A0,A1,A2,A3,A4,A5, without changing bits 6 and 7.
+    DIDR0 |= (1 << ADC0D) | (1 << ADC1D) | (1 << ADC2D) | (1 << ADC3D) | (1 << ADC4D) | (1 << ADC5D);
+    // Disable analog comparisons on digital pins.
+    DIDR1 |= (1 << AIN0D) | (1 << AIN1D);
+    // Ensure the Analog to Digital Converter is enabled and set it to use a clock prescalar of 16.
+    ADCSRA |= (1 << ADEN) | (1 << ADPS2);
+    // Disable multiplexing with the analog comparator and auto-triggering of the Analog to Digital conveter.
+    ADCSRB = (0 << ACME) | (0 << ADTS0) | (0 << ADTS1) | (0 << ADTS2);
+    // Disable the analog comparator.
+    ACSR |= (1 << ACD);
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_SETUP);
   #endif
+
+    // Respond with a SERIAL_READY and ensure that it was sent properly.
+    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    {
+        // Continually flash the onboard LED to indicate an error.
+        while(true)
+        {
+            // Toggle the onboard LED once every 256ms.
+            if(millis() & B10000000)
+            {
+                PORTB ^= B00100000;
+            }
+        }
+    }
+    // Turn the onboard LED off now that the serial port is ready.
+    PORTB &= ~B00100000;
 }
 
 
@@ -114,13 +161,6 @@ inline void processClientCommands()
     }
 
     const uint8_t command = Serial.read();
-    // If the first byte read is about the serial connection, handle it separately from the normal command logic.
-    if((command & COMMAND_SOURCE_BITMASK) == COMMAND_SOURCE_SERIAL)
-    {
-        //TODO!!!
-        return;
-    }
-
     // If the first byte isn't a command byte from the Arduino, report an error and enter serial panic mode.
     if((command & COMMAND_SOURCE_BITMASK) != COMMAND_SOURCE_CLIENT)
     {
@@ -140,6 +180,8 @@ inline void processClientCommands()
         case(COMMAND_GET_APIN_STATES):     getAnalogPinStates(); break;
         case(COMMAND_SET_DPIN_MODES):      setDigitalPinModes();
         case(COMMAND_GET_DPIN_MODES):      getDigitalPinModes(); break;
+        case(COMMAND_SET_DPIN_OUTPUTS):    setDigitalPinOutputs();
+        case(COMMAND_GET_DPIN_OUTPUTS):    getDigitalPinOutputs(); break;
         case(COMMAND_SET_SENSOR_ID):       setSensorID();
         case(COMMAND_GET_SENSOR_IDS):      getSensorIDs(); break;
         case(COMMAND_TAKE_SINGLE_READING): takeSingleReading(); break;
@@ -147,6 +189,12 @@ inline void processClientCommands()
         case(COMMAND_START_POLL_READING):  startPollReading(); break;
         case(COMMAND_SCAN_SENSORS):        scanSensors(); break;
         case(COMMAND_STOP_READING):        stopReading(); break;
+
+        case(COMMAND_SERIAL_PANIC): case(COMMAND_SERIAL_BROADCAST):
+        case(COMMAND_SERIAL_ACCEPT): case(COMMAND_SERIAL_READY):
+            // The serial connection needs to be re-established.
+            serialPanicMode();
+        break;
 
       #ifdef MCHECK_MODE
         case(COMMAND_DEBUG_LOG):
@@ -370,7 +418,7 @@ inline void setDigitalPinModes()
 
     // Read the change mask and requested digital pin states from the serial input buffer.
     // The first byte is a mask of which pins to change the state of (1 indicates the state should be changed).
-    // The second byte contains the values to set the digital pin modes to (1 indicates input mode, and 0 output).
+    // The second byte contains the modes to set the digital pin to (1 indicates input mode, and 0 output).
     uint8_t data[2];
     readSerialBytes(data);
 
@@ -379,6 +427,47 @@ inline void setDigitalPinModes()
 
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_setDigitalPinModes);
+  #endif
+}
+
+
+
+inline void getDigitalPinOutputs()
+{
+  #ifdef DEBUG_MODE
+    debugLog(INFO_START_getDigitalPinOutputs);
+  #endif
+
+    // Write the `outputValues` bitarray into the serial output buffer.
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_GET_DPIN_OUTPUTS),
+                               outputValues});
+
+  #ifdef DEBUG_MODE
+    debugLog(INFO_END_getDigitalPinOutputs);
+  #endif
+}
+
+
+
+inline void setDigitalPinOutputs()
+{
+  #ifdef DEBUG_MODE
+    debugLog(INFO_START_setDigitalPinOutputs);
+  #endif
+
+    // Read the change mask and requested output values from the serial input buffer.
+    // The first byte is a mask of which pins to set the values for (1 indicates the value should be set).
+    // The second byte contains the values to set the digital pins to.
+    uint8_t data[2];
+    readSerialBytes(data);
+
+    // Clear the specified digital pin values in `outputValues` and write the specified values in their place.
+    outputValues = (outputValues & ~data[0]) | (data[1] & data[0]);
+    PORTB = (PORTB & B11111100) | ((outputValues & B11000000) >> 6);
+    PORTD = (PORTD & B00000011) | ((outputValues & B00111111) << 2);
+
+  #ifdef DEBUG_MODE
+    debugLog(INFO_END_setDigitalPinOutputs);
   #endif
 }
 
@@ -543,7 +632,7 @@ inline void startPollReading()
 
         // Start by reading the sensor connected to analog port 1 on the Vernier interface.
         // Set the Vernier interface's MUX address to 0 by clearing it (0 represents analog port 1).
-        PORTD &= ~MUX_ADDRESS_BITMASK;
+        PORTB &= ~MUX_ADDRESS_BITMASK;
         // Start a reading on analog pin A5 (it's shared between all ports and used to read ID voltages from sensors).
         startAnalogReading(ADMUX_PIN_ADDRESS_A5);
 
@@ -913,7 +1002,7 @@ inline void handleAnalogSensorIDReading()
         return;
     }
 
-    const uint8_t portAddress = PORTD & MUX_ADDRESS_BITMASK;
+    const uint8_t portAddress = PORTB & MUX_ADDRESS_BITMASK;
 
   #ifdef MCHECK_MODE
     // If the port address is invalid, report an error and stop the sensor scan.
@@ -958,19 +1047,19 @@ inline void handleAnalogSensorIDReading()
     {
         case(MUX_PORT_ADDRESS_ANALOG_1):
             // Connect analog port 2 to the Vernier interface's MUX so it can be checked next and start a reading.
-            PORTD = (PORTD & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_ANALOG_2;
+            PORTB = (PORTB & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_ANALOG_2;
             startAnalogReading(ADMUX_PIN_ADDRESS_A5);
         break;
 
         case(MUX_PORT_ADDRESS_ANALOG_2):
             // Connect digital port 1 to the Vernier interface's MUX so it can be checked next and start a reading.
-            PORTD = (PORTD & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_DIGITAL_1;
+            PORTB = (PORTB & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_DIGITAL_1;
             startAnalogReading(ADMUX_PIN_ADDRESS_A5);
         break;
 
         case(MUX_PORT_ADDRESS_DIGITAL_1):
             // Connect digital port 2 to the Vernier interface's MUX so it can be checked next and start a reading.
-            PORTD = (PORTD & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_DIGITAL_2;
+            PORTB = (PORTB & ~MUX_ADDRESS_BITMASK) | MUX_PORT_ADDRESS_DIGITAL_2;
             startAnalogReading(ADMUX_PIN_ADDRESS_A5);
         break;
 
@@ -1039,12 +1128,12 @@ inline void startNewSensorReading()
     if(enabledFlags & PORT_DIGITAL_1_ENABLED_BITMASK)
     {
         // Store the values of pins 2,3,4,5.
-        buffer[pos] = ((PORTB & B00111100) >> 2) & pinModeFlags;
+        buffer[pos] = ((PORTD & B00111100) >> 2) & pinModeFlags;
     }
     if(enabledFlags & PORT_DIGITAL_2_ENABLED_BITMASK)
     {
         // Store the values of pins 6,7,8,9.
-        buffer[pos] |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6) & pinModeFlags;
+        buffer[pos] |= ((PORTD & B11000000) >> 2) | ((PORTB & B00000011) << 6) & pinModeFlags;
     }
 
     // Write the start time into the data buffer and increment the respective buffer counters.
@@ -1156,7 +1245,7 @@ inline void completeSensorReading()
                     break;
                 }
               #endif
-                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING), {
+                writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_TAKE_SINGLE_READING),
                                            dataBuffer[dataBufferCounter-5],
                                            dataBuffer[dataBufferCounter-4],
                                            dataBuffer[dataBufferCounter-3],
@@ -1321,11 +1410,11 @@ inline void pollDigitalPins()
     // Read the current states of the enabled digital pins.
     if(enabledFlags & PORT_DIGITAL_1_ENABLED_BITMASK)
     {
-        digitalPinStates |= ((PORTB & B00111100) >> 2);
+        digitalPinStates |= ((PORTD & B00111100) >> 2);
     }
     if(enabledFlags & PORT_DIGITAL_2_ENABLED_BITMASK)
     {
-        digitalPinStates |= ((PORTB & B11000000) >> 2) | ((PORTD & B00000011) << 6);
+        digitalPinStates |= ((PORTD & B11000000) >> 2) | ((PORTB & B00000011) << 6);
     }
     // Compares all the digital pins against their reference value, but only keep the pins that are in input mode.
     // Every bit in this variable is 1 if the corresponding pin was in input mode and matched, or 0 if it wasn't.
@@ -1334,7 +1423,7 @@ inline void pollDigitalPins()
     // If there was at least 1 match, send the matches bitarray to the client.
     if(matches != 0)
     {
-        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_SERIAL | COMMAND_START_POLL_READING),
+        writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_START_POLL_READING),
                                    matches});
     }
 
@@ -1396,8 +1485,8 @@ inline void stopAnalogReadings()
       }
   #endif
 
-    // Disable the Analog to Digital Converter (ADC).
-    ADCSRA = B00000000;
+    // Keep the Analog to Digital Converter (ADC) enabled, but disable all other functionality.
+    ADCSRA = (1 << ADEN);
     // Clearing the current reading type is the same as setting it to `READING_TYPE_NONE`.
     statusFlags &= ~CURRENT_READING_TYPE_BITMASK;
 
@@ -1430,7 +1519,7 @@ inline uint8_t getSensorID(const uint16_t voltageReading)// TODO THE VALUES IN T
     } else
     if((241 < voltageReading) && (voltageReading < 266)) // 1.18 < idV < 1.30
     {
-        // Resistance(4) 
+        // Resistance(4)
         return 127;//TODO
     } else
     if((311 < voltageReading) && (voltageReading < 344)) // 1.52 < idV < 1.68
@@ -1455,12 +1544,12 @@ inline uint8_t getSensorID(const uint16_t voltageReading)// TODO THE VALUES IN T
     } else
     if((762 < voltageReading) && (voltageReading < 791)) // 3.72 < idV < 3.86
     {
-        // Voltage +/-10v(2) 
+        // Voltage +/-10v(2)
         return 127;//TODO
     } else
     if((836 < voltageReading) && (voltageReading < 852)) // 4.08 < idV < 4.16
     {
-        // Raw voltage(14) 
+        // Raw voltage(14)
         return 127;//TODO
     } else
     if((885 < voltageReading) && (voltageReading < 901)) // 4.32 < idV < 4.40
@@ -1477,7 +1566,7 @@ inline uint8_t getSensorID(const uint16_t voltageReading)// TODO THE VALUES IN T
     } else
     if((969 < voltageReading) && (voltageReading < 987)) // 4.73 < idV < 4.82
     {
-        // Current(9) 
+        // Current(9)
         return 127;//TODO
     } else {
         // Try and identify the sensor using I2C Wire communication.
@@ -1487,6 +1576,56 @@ inline uint8_t getSensorID(const uint16_t voltageReading)// TODO THE VALUES IN T
   #ifdef MDEBUG_MODE
     debugLog(INFO_END_getSensorID);
   #endif
+}
+
+
+
+inline void establishSerialConnection()
+{
+    // Keep the onboard LED on until the connection is established.
+    PORTB |= B00100000;
+
+    // Start a new serial connection and wait until the port is initialized.
+    Serial.begin(BAUD_RATE);
+    while(!Serial){}
+
+    // Wait until a SERIAL_BROADCAST command is received by the client.
+    while(true)
+    {
+        if(Serial.available() && (Serial.read() == (COMMAND_SOURCE_CLIENT | COMMAND_SERIAL_BROADCAST)))
+        {
+            break;
+        }
+    }
+
+    // Respond with a SERIAL_ACCEPT and ensure that it was sent properly.
+    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    {
+        // Continually flash the onboard LED to indicate an error.
+        while(true)
+        {
+            // Toggle the onboard LED once every 256ms
+            if(millis() & B10000000)
+            {
+                PORTB ^= B00100000;
+            }
+        }
+    } else {
+        // Flash it once to indicate success.
+        const uint32_t startTime = millis();
+        PORTB &= ~B00100000;
+        while((millis() - startTime) < 1000){}
+        PORTB |= B00100000;
+    }
+
+    // Wait until a SERIAL_READY command is received from the client, and echo it back to the client.
+    while(true)
+    {
+        if(Serial.available() && (Serial.read() == (COMMAND_SOURCE_CLIENT | COMMAND_SERIAL_READY)))
+        {
+            break;
+        }
+    }
 }
 
 
@@ -1544,41 +1683,57 @@ template <size_t N> inline void writeSerialBytes(const uint8_t (&buffer)[N])
 
 
 
-inline void serialPanicMode()//TODO decide on better behavior for this!!!
+inline void serialPanicMode()
 {
     // Turn on the on-board LED to indicate an error has occurred.
-    PORTD |= B00100000;
+    PORTB |= B00100000;
 
     // Cancel any readings currently in progress.
-    stopAnalogReadings();
+    if((statusFlags & CURRENT_READING_TYPE_BITMASK) != READING_TYPE_NONE)
+    {
+        stopReading();
+    }
 
     // Send a 'serial panic' error to the client to alert it that the connection needs to be re-established.
-    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_DEBUG_LOG),
-                               0});//ERROR_SERIAL_PANIC
+    writeSerialBytes({(uint8_t)(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_PANIC)});
     // Flush any bytes still in the serial output buffer.
     Serial.flush();
 
-    // Wait 3 seconds before restarting the Arduino.
+    // Wait 5 seconds before re-establishing the serial connection.
     const uint32_t timeStart = millis();
     while((millis() - timeStart) < 5000)
     {
-        // Flash the onboard LED once every 256ms.
+        // Flash the onboard LED once every 256ms while waiting.
         if(millis() & B10000000)
         {
             // Toggle the onboard LED
-            PORTD ^= B00100000;
+            PORTB ^= B00100000;
         }
-        // Discard any leftover or incoming Serial input.
+        // Discard any leftover or incoming serial input.
         while(Serial.available())
         {
             Serial.read();
         }
     }
 
-    // Perform a hard reset of the Arduino. Calling this function forcibly resets the Arduino to start
-    // executing at memory address 0, completely ignoring any current context or safeguards. This has to be used
-    // EXTREMELY CAREFULLY and running this code on any non-Arduino platform could be unpleasant.
-    static void(*hardReset)(void) = 0; hardReset();
+    // Re-establish the serial connection.
+    Serial.end();
+    establishSerialConnection();
+    // Respond with a SERIAL_READY and ensure that it was sent properly.
+    if(Serial.write(COMMAND_SOURCE_ARDUINO | COMMAND_SERIAL_ACCEPT) != 1)
+    {
+        // Continually flash the onboard LED to indicate an error.
+        while(true)
+        {
+            // Toggle the onboard LED once every 256ms.
+            if(millis() & B10000000)
+            {
+                PORTB ^= B00100000;
+            }
+        }
+    }
+    // Turn the onboard LED off now that the serial port is ready.
+    PORTB &= ~B00100000;
 }
 
 
@@ -1675,7 +1830,7 @@ inline void debugDump(const uint8_t debugCode)
         DIDR0,
         DIDR1,
         ADMUX,
-        ADCSRB,
+        ADCSRA,
         ADCSRB,
         ACSR
     };
@@ -1701,171 +1856,7 @@ template <size_t N> inline void debugDumpWithStack(const uint8_t debugCode, cons
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 //TODO paste the check functions everywhere so they dont have to wait much
-
-// Make sure pins 10 and 11 are output!
-// This function gets called once when the program first starts; it initializes the serial connection, and sets up
-// various registers and states of the Arduino for the program.
-void whatever()
-{
-    /*// Start a serial connection.
-    Serial.begin(BAUD_RATE);
-    // Wait for the Serial port to be intialized.
-    while(!Serial){}
-
-  #ifdef DEBUG_MODE
-  {
-    // Send a copy of all the registry values we alter before setup starts.
-    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_SETUP_START, 0, 0, 0, 0,
-                           DEBUG_VALUE_DDRB, DDRB, DEBUG_VALUE_DDRC, DDRC, DEBUG_VALUE_DDRD, DDRD,
-                           DEBUG_VALUE_PORTB, PORTB, DEBUG_VALUE_PORTC, PORTC, DEBUG_VALUE_PORTD, PORTD,
-                           DEBUG_VALUE_DIDR0, DIDR0, DEBUG_VALUE_DIDR1, DIDR1,
-                           DEBUG_VALUE_ADCSRA, ADCSRA, DEBUG_VALUE_ADCSRB, ADCSRB, DEBUG_VALUE_ACSR, ACSR};
-    const uint32_t time = micros();
-    values[2] = time         & B11111111;
-    values[3] = (time >> 8)  & B11111111;
-    values[4] = (time >> 16) & B11111111;
-    values[5] = (time >> 24) & B11111111;
-    Serial.write(values, 28);
-  }{
-    // Send a copy of all the macro values the program started up with.
-    const uint32_t BAUD_RATE_HOLDER = BAUD_RATE;
-    const uint32_t SERIAL_BUFFER_SIZE_HOLDER = SERIAL_BUFFER_SIZE;
-  #ifdef AVERAGE_COUNT
-    const uint8_t AVERAGE_COUNT_HOLDER = AVERAGE_COUNT;
-  #else
-    const uint8_t AVERAGE_COUNT_HOLDER = 0;
-  #endif
-  #ifdef SAFE_MODE
-    const uint8_t SAFE_MODE_HOLDER = 1;
-  #else
-    const uint8_t SAFE_MODE_HOLDER = 0;
-  #endif
-    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_MACRO_DUMP, 0, 0, 0, 0, DEBUG_VALUE_BAUD_RATE,
-                           ((BAUD_RATE_HOLDER >> 24) & B11111111), ((BAUD_RATE_HOLDER >> 16) & B11111111),
-                           ((BAUD_RATE_HOLDER >> 8) & B11111111), (BAUD_RATE_HOLDER & B11111111), DEBUG_VALUE_SERIAL_SIZE,
-                           ((SERIAL_BUFFER_SIZE_HOLDER >> 24) & B11111111), ((SERIAL_BUFFER_SIZE_HOLDER >> 16) & B11111111),
-                           ((SERIAL_BUFFER_SIZE_HOLDER >> 8) & B11111111), (SERIAL_BUFFER_SIZE_HOLDER & B11111111),
-                           DEBUG_VALUE_AVERAGE_COUNT, AVERAGE_COUNT_HOLDER, DEBUG_VALUE_DEBUG_MODE, 1,
-                           DEBUG_VALUE_SAFE_MODE, SAFE_MODE_HOLDER};
-    const uint32_t time = micros();
-    values[2] = time         & B11111111;
-    values[3] = (time >> 8)  & B11111111;
-    values[4] = (time >> 16) & B11111111;
-    values[5] = (time >> 24) & B11111111;
-    Serial.write(values, 22)
-  }
-  #endif
-
-    // Set analog pins A0,A1,A2,A3,A4,A5 to input mode without changing bit 6 or 7.
-    DDRC &= B11000000;
-    // Set pins 2,3,4,5,6,7,8,9,10,11,12,13 to input mode, without changing pins 0,1,14,15.
-    DDRD &= B00000011;
-    DDRB &= B11000000;
-    // Set pin 13 (onboard LED) to output mode, without changing any other bits.
-    DDRB |= B00100000;
-
-    // Enable the pullup resistor on pin 12 (push button) to invert it's states.
-    PORTB |= B00010000;
-
-    // Disable PWM output from TIMER1 and set it to run in Clear on Timer Compare (CTC) mode.
-    TCCR1A = B00000000;
-    // Stop the counter by setting it's prescalar to 0.
-    TCCR1B = B00000000;
-
-    // Disable digital readings on analog pins A0,A1,A2,A3,A4,A5, without changing bits 6 and 7.
-    DIDR0 |= (1 << ADC0D) | (1 << ADC1D) | (1 << ADC2D) | (1 << ADC3D) | (1 << ADC4D) | (1 << ADC5D);
-    // Disable analog comparisons on digital pins.
-    DIDR1 |= (1 << AIN0D) | (1 << AIN1D);
-    // Ensure the Analog to Digital Converter is enabled and set it to use a clock prescalar of 16.
-    ADCSRA |= (1 << ADEN) | (1 << ADPS2);
-    // Disable multiplexing with the analog comparator and auto-triggering of the Analog to Digital conveter.
-    ADCSRB = (0 << ACME) | (0 << ADTS0) | (0 << ADTS1) | (0 << ADTS2);
-    // Disable the analog comparator.
-    ACSR |= (1 << ACD);
-
-  #ifdef DEBUG_MODE
-  {
-    // Send a copy of all the registry values we alter after setup has finished.
-    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_SETUP_FINISH, 0, 0, 0, 0,
-                           DEBUG_VALUE_DDRB, DDRB, DEBUG_VALUE_DDRC, DDRC, DEBUG_VALUE_DDRD, DDRD,
-                           DEBUG_VALUE_PORTB, PORTB, DEBUG_VALUE_PORTC, PORTC, DEBUG_VALUE_PORTD, PORTD,
-                           DEBUG_VALUE_DIDR0, DIDR0, DEBUG_VALUE_DIDR1, DIDR1,
-                           DEBUG_VALUE_ADCSRA, ADCSRA, DEBUG_VALUE_ADCSRB, ADCSRB, DEBUG_VALUE_ACSR, ACSR};
-                           DEBUG_VALUE_ACSR, ACSR};
-    const uint32_t time = micros();
-    values[2] = time         & B11111111;
-    values[3] = (time >> 8)  & B11111111;
-    values[4] = (time >> 16) & B11111111;
-    values[5] = (time >> 24) & B11111111;
-    Serial.write(values, 28);
-  }
-  #endif
-
-    // Send the ready command to the client, notifying it the Arduino is ready for communcation.
-    Serial.write(RESPONSE_PREFIX | DEBUG_CONNECTION_READY);
-    Serial.flush();
-
-    // Wait until an echoing ready command is received from the client.
-    while(true)
-    {
-        while(Serial.available() == 0){}
-        const byte command = Serial.read();
-        if(command != (COMMAND_PREFIX | COMMAND_READY))
-        {
-            Serial.write(RESPONSE_PREFIX | COMMAND_READY);
-            Serial.flush();
-        }
-    }
-
-  #ifdef DEBUG_MODE
-  {
-    // Log that everything is ready and the program is about to enter the main loop.
-    const byte values[] = {RESPONSE_PREFIX | COMMAND_DEBUG_LOG, DEBUG_READY, 0, 0, 0, 0};
-    const uint32_t time = micros();
-    values[2] = time         & B11111111;
-    values[3] = (time >> 8)  & B11111111;
-    values[4] = (time >> 16) & B11111111;
-    values[5] = (time >> 24) & B11111111;
-    Serial.write(values, 6);
-  }
-  #endif*/
-}
-
-
 //==== LIMITATIONS AND CONCERNS ====//
 /**
  Baud rates have to be between 0 and 2^32 (512 MBps)
@@ -1877,12 +1868,6 @@ void whatever()
 
  Digital Sensor 2 takes a little longer to read from than digital sensor 1.
  Analog sensors are read in order one at a time, so higher address analog pins will be read after others if other pins are enabled.
-**/
-
-/**
- Things to enforce later:
-    debugLogs must take 'DEBUG_'
-    debugLogDumps must take 'ERROR_'
 **/
 
 // TODO SO WHATS THE POINT OF THE DATA BUFFER NOW THEN?
