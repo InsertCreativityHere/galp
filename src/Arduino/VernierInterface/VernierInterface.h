@@ -169,7 +169,7 @@
       * is being sent from, and a command code to let the receiver know what the content of the packet is. **/
     // Bitmask for getting the command code. It should be used like `(commandByte & COMMAND_CODE_BITMASK)`.
     const uint8_t COMMAND_CODE_BITMASK = B00001111;
-        // A list of all supported command codes.
+        // A list of all supported command codes. These make up the first 4 bits of command bytes.
         const uint8_t COMMAND_DEBUG_LOG           = 0;
         const uint8_t COMMAND_GET_SAMPLE_PERIOD   = 1;
         const uint8_t COMMAND_SET_SAMPLE_PERIOD   = 2;
@@ -289,21 +289,22 @@
         const uint8_t SENSOR_UNKNOWN                              = 127;
 //      Sensor IDs 73~126 are unused.
 
+    /** Debug bytes: These are sent to the client to either provide logging information or indicate an error has
+      * occurred. These bytes are sent as the first payload byte after a `DEBUG_LOG` command byte. The first bit of a
+      * debug byte indicates whether it's informational (0) or represents an error (1), and the second bit is set to 1
+      * if there's additional stack data being sent in the payload. Note this doesn't include the register and variable
+      * values usually sent alongside error codes. **/
     // Bitmask for getting the type of a debug code (informational or error).
-    // To get the type of a debug code use `(debugCode & DEBUG_CODE_TYPE_BITMASK)`. And compare with the below values.
+    // To get the type of a debug code use `(debugCode & DEBUG_CODE_TYPE_BITMASK)`.
     const uint8_t DEBUG_CODE_TYPE_BITMASK = B10000000;
-        // Prefix bit that means a debug code represents an informational message.
+        // Prefix marker that means a debug code represents an informational message.
         const uint8_t DEBUG_CODE_TYPE_INFORM = B00000000;
-        // Prefix bit that means a debug code represents an error.
+        // Prefix marker that means a debug code represents an error.
         const uint8_t DEBUG_CODE_TYPE_ERROR  = B10000000;
     // Bitmask for getting whether a debug code has additional payload bytes.
-    // To get whether it does, use `(debugCode & ADDITIONAL_PAYLOAD_BITMASK)`. If true there's additional payload data.
+    // To get whether it does use `(debugCode & ADDITIONAL_PAYLOAD_BITMASK)`. If true, there's additional payload data.
     const uint8_t ADDITIONAL_PAYLOAD_BITMASK = B01000000;
-    // Debug codes; These are sent to the client to either provide logging information or indicate an error has
-    // occurred. These codes are sent as a payload byte after a `DEBUG_LOG` command byte.
-    // The first bit of every debug code indicates whether it's informational (0) or represents an error (1), and
-    // the second bit is set to 1 if there's additional stack data in the payload. Note this doesn't include the usual
-    // payload sent for error codes containing a dump of the Arduino's registers and the program's global variables.
+    // List of all the supported informational debug codes.
       #ifdef MDEBUG_MODE
         const uint8_t INFO_START_SETUP                          = 0  | DEBUG_CODE_TYPE_ERROR;
         const uint8_t INFO_END_SETUP                            = 1;
@@ -370,6 +371,7 @@
         const uint8_t INFO_START_getSensorID                    = 62 | ADDITIONAL_PAYLOAD_BITMASK;
         const uint8_t INFO_END_getSensorID                      = 63;
       #endif
+    // List of all the error debug codes.
         const uint8_t ERROR_ILLEGAL_READING_TYPE_loop                          = 0  | DEBUG_CODE_TYPE_ERROR;
         const uint8_t ERROR_ILLEGAL_COMMAND_SOURCE_processClientCommands       = 1  | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
         const uint8_t ERROR_DEBUG_LOG_processClientCommands                    = 2  | DEBUG_CODE_TYPE_ERROR;
