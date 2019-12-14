@@ -1215,10 +1215,152 @@ inline void completeSensorReading()
                                        ((uint32_t)dataBuffer[dataBufferCounter-3] << 16) |
                                        ((uint32_t)dataBuffer[dataBufferCounter-2] <<  8) |
                                         (uint32_t)dataBuffer[dataBufferCounter-1];
-            // Divides both times by 2 and adds them together. This is the average time.
-            time = (time >> 1) + (startTime >> 1);
+            // Divides both times by 2 and adds them together, accounting for any rounding errors; The average time.
+            time = (time >> 1) + (startTime >> 1) + (B1 & time & startTime);
 
-            // TODO take the average here
+            // Create a temporary variable for storing the average digital pin values in.
+            uint8_t digitalAverages = B00000000;
+            if(enabledFlags & PORT_DIGITAL_1_ENABLED_BITMASK)
+            {
+                // Count the number of times each bit was set.
+                uint8_t setCount[4] = {0, 0, 0, 0};
+                uint8_t temp;
+                for(uint8_t i = 0; i < AVERAGE_COUNT; i++)
+                {
+                    temp = averagingBuffer[6 * i];
+                    if(temp & B00000001){setCount[0]++;}
+                    if(temp & B00000010){setCount[1]++;}
+                    if(temp & B00000100){setCount[2]++;}
+                    if(temp & B00001000){setCount[3]++;}
+                }
+                // Set all the bits that were set at least 50% (inclusive) of the time in `digitalAverages`.
+                if(2 * setCount[0] / AVERAGE_COUNT){digitalAverages  = B00000001;}
+                if(2 * setCount[1] / AVERAGE_COUNT){digitalAverages |= B00000010;}
+                if(2 * setCount[2] / AVERAGE_COUNT){digitalAverages |= B00000100;}
+                if(2 * setCount[3] / AVERAGE_COUNT){digitalAverages |= B00001000;}
+            }
+            if(enabledFlags & PORT_DIGITAL_2_ENABLED_BITMASK)
+            {
+                // Count the number of times each bit was set.
+                uint8_t setCount[4] = {0, 0, 0, 0};
+                uint8_t temp;
+                for(uint8_t i = 0; i < AVERAGE_COUNT; i++)
+                {
+                    temp = averagingBuffer[6 * i];
+                    if(temp & B00010000){setCount[0]++;}
+                    if(temp & B00100000){setCount[1]++;}
+                    if(temp & B01000000){setCount[2]++;}
+                    if(temp & B10000000){setCount[3]++;}
+                }
+                // Set all the bits that were set at least 50% (inclusive) of the time in `digitalAverages`.
+                if(2 * setCount[0] / AVERAGE_COUNT){digitalAverages |= B00010000;}
+                if(2 * setCount[1] / AVERAGE_COUNT){digitalAverages |= B00100000;}
+                if(2 * setCount[2] / AVERAGE_COUNT){digitalAverages |= B01000000;}
+                if(2 * setCount[3] / AVERAGE_COUNT){digitalAverages |= B10000000;}
+            }
+            // Write the digital averages into the data buffer.
+            dataBuffer[dataBufferCounter++] = digitalAverages;
+
+            // Compute how many analog pins were used in the reading and switch on the value.
+            const uint8_t count = ((statusFlags & PIN_A0_ENABLED_BITMASK)? 1 : 0) +
+                                  ((statusFlags & PIN_A1_ENABLED_BITMASK)? 1 : 0) +
+                                  ((statusFlags & PIN_A2_ENABLED_BITMASK)? 1 : 0) +
+                                  ((statusFlags & PIN_A3_ENABLED_BITMASK)? 1 : 0);
+            switch(count)
+            {
+                case(0):
+                    // Do nothing if there aren't any analog readings to average.
+                break;
+
+                case(1):
+                    uint16_t analogAverages[1] = {0};
+                    for(int i = 0; i < AVERAGE_COUNT; i++)
+                    {
+                        analogAverages[0] +=  ((uint16_t)averagingBuffer[(6*i)+1]) |
+                                             (((uint16_t)averagingBuffer[(6*i)+2] & B00000011) << 8);
+                    }
+                    analogAverages[0] /= AVERAGE_COUNT;
+                    dataBuffer[dataBufferCounter]   =  (analogAverages[0] & B11111111);
+                    dataBuffer[dataBufferCounter+1] = ((analogAverages[0] & B1100000000) >> 8);
+                    dataBufferCounter += 2;
+                break;
+
+                case(2):
+                    uint16_t analogAverages[2] = {0, 0};
+                    for(int i = 0; i < AVERAGE_COUNT; i++)
+                    {
+                        analogAverages[0] +=  ((uint16_t)averagingBuffer[(6*i)+1]) |
+                                             (((uint16_t)averagingBuffer[(6*i)+2] & B00000011) << 8);
+                        analogAverages[1] += (((uint16_t)averagingBuffer[(6*i)+2] & B11111100) >> 2) |
+                                             (((uint16_t)averagingBuffer[(6*i)+3] & B00001111) << 6);
+                    }
+                    analogAverages[0] /= AVERAGE_COUNT;
+                    analogAverages[1] /= AVERAGE_COUNT;
+                    dataBuffer[dataBufferCounter]   =  (analogAverages[0] & B0011111111);
+                    dataBuffer[dataBufferCounter+1] = ((analogAverages[0] & B1100000000) >> 8) |
+                                                      ((analogAverages[1] & B0000111111) << 2);
+                    dataBuffer[dataBufferCounter+2] = ((analogAverages[1] & B1111000000) >> 6);
+                    dataBufferCounter += 3;
+                break;
+
+                case(3):
+                    uint16_t analogAverages[3] = {0, 0, 0};
+                    for(int i = 0; i < AVERAGE_COUNT; i++)
+                    {
+                        analogAverages[0] +=  ((uint16_t)averagingBuffer[(6*i)+1]) |
+                                             (((uint16_t)averagingBuffer[(6*i)+2] & B00000011) << 8);
+                        analogAverages[1] += (((uint16_t)averagingBuffer[(6*i)+2] & B11111100) >> 2) |
+                                             (((uint16_t)averagingBuffer[(6*i)+3] & B00001111) << 6);
+                        analogAverages[2] += (((uint16_t)averagingBuffer[(6*i)+3] & B11110000) >> 4) |
+                                             (((uint16_t)averagingBuffer[(6*i)+4] & B00111111) << 4);
+                    }
+                    analogAverages[0] /= AVERAGE_COUNT;
+                    analogAverages[1] /= AVERAGE_COUNT;
+                    analogAverages[2] /= AVERAGE_COUNT;
+                    dataBuffer[dataBufferCounter]   =  (analogAverages[0] & B0011111111);
+                    dataBuffer[dataBufferCounter+1] = ((analogAverages[0] & B1100000000) >> 8) |
+                                                      ((analogAverages[1] & B0000111111) << 2);
+                    dataBuffer[dataBufferCounter+2] = ((analogAverages[1] & B1111000000) >> 6) |
+                                                      ((analogAverages[2] & B0000001111) << 4);
+                    dataBuffer[dataBufferCounter+3] = ((analogAverages[2] & B1111110000) >> 4);
+                    dataBufferCounter += 4;
+                break;
+
+                case(4):
+                    uint16_t analogAverages[4] = {0, 0, 0, 0};
+                    for(int i = 0; i < AVERAGE_COUNT; i++)
+                    {
+                        analogAverages[0] +=  ((uint16_t)averagingBuffer[(6*i)+1]) |
+                                             (((uint16_t)averagingBuffer[(6*i)+2] & B00000011) << 8);
+                        analogAverages[1] += (((uint16_t)averagingBuffer[(6*i)+2] & B11111100) >> 2) |
+                                             (((uint16_t)averagingBuffer[(6*i)+3] & B00001111) << 6);
+                        analogAverages[2] += (((uint16_t)averagingBuffer[(6*i)+3] & B11110000) >> 4) |
+                                             (((uint16_t)averagingBuffer[(6*i)+4] & B00111111) << 4);
+                        analogAverages[3] += (((uint16_t)averagingBuffer[(6*i)+4] & B11000000) >> 6) |
+                                              ((uint16_t)averagingBuffer[(6*i)+5]              << 2);
+                    }
+                    analogAverages[0] /= AVERAGE_COUNT;
+                    analogAverages[1] /= AVERAGE_COUNT;
+                    analogAverages[2] /= AVERAGE_COUNT;
+                    analogAverages[3] /= AVERAGE_COUNT;
+                    dataBuffer[dataBufferCounter]   =  (analogAverages[0] & B0011111111);
+                    dataBuffer[dataBufferCounter+1] = ((analogAverages[0] & B1100000000) >> 8) |
+                                                      ((analogAverages[1] & B0000111111) << 2);
+                    dataBuffer[dataBufferCounter+2] = ((analogAverages[1] & B1111000000) >> 6) |
+                                                      ((analogAverages[2] & B0000001111) << 4);
+                    dataBuffer[dataBufferCounter+3] = ((analogAverages[2] & B1111110000) >> 4) |
+                                                      ((analogAverages[3] & B0000000011) << 6);
+                    dataBuffer[dataBufferCounter+4] = ((analogAverages[4] & B1111111100) >> 2);
+                    dataBufferCounter += 5;
+                break;
+
+              #ifdef MCHECK_MODE
+                default:
+                  // An illegal number of pins were used in the reading.
+                  debugDumpWithStack(ERROR_ILLEGAL_PIN_COUNT_completeSensorReading, {count});
+                break;
+              #endif
+            }
         } else {
             // If there aren't enough readings to average, then shift the counter forward by a reading and return.
             averagingBufferCounter += 6;
@@ -1868,6 +2010,9 @@ template <size_t N> inline void debugDumpWithStack(const uint8_t debugCode, cons
 
  Digital Sensor 2 takes a little longer to read from than digital sensor 1.
  Analog sensors are read in order one at a time, so higher address analog pins will be read after others if other pins are enabled.
+
+ The average time may not be accurate. It's only the average of the start and the end, not the true average of each reading's timestamp.
+ If an even number of readings are averaged together, the average value for digital pins leans towards 1. Ex: If 2 readings are averaged, and a pin's values for those readings was 0, and 1. It's average will be 1.
 **/
 
 // TODO SO WHATS THE POINT OF THE DATA BUFFER NOW THEN?

@@ -400,20 +400,21 @@
         const uint8_t ERROR_UNHANDLED_DATA_startNewSensorReading               = 28 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
         const uint8_t ERROR_INVALID_READING_completeSensorReading              = 29 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
         const uint8_t ERROR_TOO_MANY_READINGS_completeSensorReading            = 30 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading      = 31 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_ILLEGAL_MEMORY_MODE_completeSensorReading          = 32 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_INVALID_READING_pollDigitalPins                    = 33 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_ILLEGAL_ADDRESS_startAnalogReading                 = 34 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_PIN_A4_ACCESS_startAnalogReading                   = 35 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_NO_READING_startAnalogReading                      = 36 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_READING_STILL_RUNNING_stopAnalogReadings           = 37 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_SERIAL_TIMEOUT_readSerialBytes                     = 38 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_MISSING_CHECKSUM_readSerialBytes                   = 39 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_CHECKSUM_MISMATCH_readSerialBytes                  = 40 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugLogWithStack     = 41 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_DEBUG_CODE_TYPE_MISTMATCH_debugDump                = 42 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-        const uint8_t ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugDumpWithStack    = 43 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
-//      Error debug codes 44~63 are unused.
+        const uint8_t ERROR_ILLEGAL_PIN_COUNT_completeSensorReading            = 31 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_BUFFER_COUNTER_MISMATCH_completeSensorReading      = 32 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_ILLEGAL_MEMORY_MODE_completeSensorReading          = 33 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_INVALID_READING_pollDigitalPins                    = 34 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_ILLEGAL_ADDRESS_startAnalogReading                 = 35 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_PIN_A4_ACCESS_startAnalogReading                   = 36 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_NO_READING_startAnalogReading                      = 37 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_READING_STILL_RUNNING_stopAnalogReadings           = 38 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_SERIAL_TIMEOUT_readSerialBytes                     = 39 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_MISSING_CHECKSUM_readSerialBytes                   = 40 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_CHECKSUM_MISMATCH_readSerialBytes                  = 41 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugLogWithStack     = 42 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_DEBUG_CODE_TYPE_MISTMATCH_debugDump                = 43 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+        const uint8_t ERROR_DEBUG_CODE_PAYLOAD_MISTMATCH_debugDumpWithStack    = 44 | DEBUG_CODE_TYPE_ERROR | ADDITIONAL_PAYLOAD_BITMASK;
+//      Error debug codes 45~63 are unused.
 
 //===== Global Variables =====//
 
