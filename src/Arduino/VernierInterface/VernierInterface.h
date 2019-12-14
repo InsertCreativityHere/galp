@@ -65,7 +65,7 @@
     // These bitmasks are used for getting which ports on the Vernier interface are currently enabled.
     // Only ports that are enabled will be measured during sensor readings, and all enabled ports will be read from.
     // A value of true indicates the port is enabled, and a value of false indicates the port is disabled.
-    // To get whether a port is enabled or not, use `(PORT_X_ENABLED_BITMASK & enabledFlags)`.
+    // To get whether a port is enabled or not, use `(enabledFlags & PORT_X_ENABLED_BITMASK)`.
     const uint8_t PORT_ANALOG_1_ENABLED_BITMASK  = B00000001;
     const uint8_t PORT_ANALOG_2_ENABLED_BITMASK  = B00000010;
     const uint8_t PORT_DIGITAL_1_ENABLED_BITMASK = B00000100;
@@ -77,7 +77,7 @@
     // Usuaully which pins are enabled is determined by the type of sensor, different sensors use different pins, and
     // ports with no sensor will have all their pins disabled, but this can all be overriden with SET_APIN_STATES.
     // A value of true indicates the pin is enabled, and a value of false indicates the pin is disabled.
-    // To get whether an analog pin is enabled or not use `(PIN_X_ENABLED_BITMASK & enabledFlags)`.
+    // To get whether an analog pin is enabled or not use `(enabledFlags & PIN_X_ENABLED_BITMASK)`.
     const uint8_t PIN_A0_ENABLED_BITMASK = B00010000;
     const uint8_t PIN_A1_ENABLED_BITMASK = B00100000;
     const uint8_t PIN_A2_ENABLED_BITMASK = B01000000;
@@ -87,7 +87,7 @@
 
     // These bitmasks are used for getting the current pin mode of the digital pins the Vernier interface uses.
     // A value of false indicates the pin is in output mode, and a value of true indicates input mode.
-    // To get the pin mode of a digital pin use `(PIN_MODE_DIGITAL_X_BITMASK & pinModeFlags)`.
+    // To get the pin mode of a digital pin use `(pinModeFlags & PIN_MODE_DIGITAL_X_BITMASK)`.
     const uint8_t PIN_MODE_DIGITAL_2_BITMASK = B00000001;
     const uint8_t PIN_MODE_DIGITAL_3_BITMASK = B00000010;
     const uint8_t PIN_MODE_DIGITAL_4_BITMASK = B00000100;
@@ -98,7 +98,7 @@
     const uint8_t PIN_MODE_DIGITAL_9_BITMASK = B10000000;
 
     // This bitmask is used to get the current type of reading that the Arduino is taking (if any).
-    // To get the current reading type use `(CURRENT_READING_TYPE_BITMASK & statusflags)`, and compare the result
+    // To get the current reading type use `(statusflags & CURRENT_READING_TYPE_BITMASK)`, and compare the result
     // to one of the `READING_TYPE_X` constants below which represent the different supported reading types.
     const uint8_t CURRENT_READING_TYPE_BITMASK = B00000111;
         // Indicates the Arduino isn't currently taking a reading.
@@ -117,11 +117,11 @@
 //      Reading types 6 and 7 are unused
     // This bitmask is used to determine if the currently running reading should be stopped. The flag it masks for
     // indicates that the client has signaled for whatever reading is currently running to be ended.
-    // To get whether readings should be stopped, use `(READING_IN_PROGRESS_BITMASK & statusFlags)`.
+    // To get whether readings should be stopped, use `(statusFlags & READING_IN_PROGRESS_BITMASK)`.
     const uint8_t STOP_CURRENT_READING_BITMASK = B00001000;
     // These bitmasks are used to determine if there was an interrupt that the main loop needs to handle.
     // When the Arduino calls an Interrupt Service Routine (ISR), it sets the corresponding flag with these.
-    // To get whether there's an unhandled interrupt use `(X_INTERRUPT_SIGNAL_BITMASK & statusFlags)`.
+    // To get whether there's an unhandled interrupt use `(statusFlags & X_INTERRUPT_SIGNAL_BITMASK)`.
     // A value of true indicates there's an interrupt to handle, and false indicates there isn't.
         // Indicates there was an interrupt from the Arduino's TIMER1 clock (this only happens during batch readings to
         // signal that a new reading should be started).
@@ -131,7 +131,7 @@
     // These bitmasks are used to determine if there was an interrupt that was skipped, and the main loop needs
     // to account for. The client is always notified of skipped interrupts, but for ADC interrupts, often the skipped
     // reading will need to be retaken.
-    // To get whether an unhandled interrupt was missed, use `(X_INTERRUPT_MISSED_BITMASK & statusFlags)`.
+    // To get whether an unhandled interrupt was missed, use `(statusFlags & X_INTERRUPT_MISSED_BITMASK)`.
     // A value of true indicates an unhandled interrupt was skipped, and false indicates there wasn't.
         // Indicates there was an unhandled interrupt from TIMER1 that got skipped because it wasn't handled in time.
         const uint8_t TIMER_INTERRUPT_MISSED_BITMASK = B01000000;
@@ -142,7 +142,7 @@
     // All ports on the interface share analog pins A4 and A5 for resistance and identification voltage readings,
     // in order to measure these on a sensor, the sensor's address must first be set in the MUX. On the Arduino the
     // MUX address is set by using digital pins 10 and 11 (which are controlled with the PORTD register).
-    // To get the port address currently stored in the MUX, use `(MUX_ADDRESS_BITMASK & PORTD)`.
+    // To get the port address currently stored in the MUX, use `(PORTD & MUX_ADDRESS_BITMASK)`.
     const uint8_t MUX_ADDRESS_BITMASK = B00001100;
         // Addresses for each of the ports on the Vernier interface.
         const uint8_t MUX_PORT_ADDRESS_ANALOG_1  = B00000000; //0
@@ -152,7 +152,7 @@
 
     // This bitmask is used to get the pin address stored in the Arduino's Analog to Digital MUltipleXer (ADMUX).
     // Whatever pin has it's address in the ADMUX register is the pin that will be used for analog readings.
-    // To get the analog pin address currently stored in the ADMUX, use `(ADMUX_ADDRESS_BITMASK & ADMUX)`.
+    // To get the analog pin address currently stored in the ADMUX, use `(ADMUX & ADMUX_ADDRESS_BITMASK)`.
     const uint8_t ADMUX_ADDRESS_BITMASK = B00001111;
         // Addresses for each of the analog pins on the Arduino.
         const uint8_t ADMUX_PIN_ADDRESS_A0 = B00000000; //0
@@ -163,7 +163,7 @@
         const uint8_t ADMUX_PIN_ADDRESS_A5 = B00000101; //5
 //      Addresses 6~15 are only available on larger Arduinos.
 
-    // Bitmask for getting the command code. It should be used like `(COMMAND_CODE_BITMASK & commandByte)`.
+    // Bitmask for getting the command code. It should be used like `(commandByte & COMMAND_CODE_BITMASK)`.
     const uint8_t COMMAND_CODE_BITMASK = B00001111;
         // Commands bytes; These are sent between the client and the Arduino to relay information and instructions to
         // one another and make up the first byte of every packet. These consist of a source marker that denotes
@@ -192,7 +192,7 @@
         const uint8_t COMMAND_SERIAL_ACCEPT       = 30;
         const uint8_t COMMAND_SERIAL_READY        = 31;
 //      Command codes 18~27 are unused.
-    // Bitmask for getting the source of the command. It should be used like `(COMMAND_SOURCE_BITMASK & commandByte)`.
+    // Bitmask for getting the source of the command. It should be used like `(commandByte & COMMAND_SOURCE_BITMASK)`.
     const uint8_t COMMAND_SOURCE_BITMASK = B11100000;
         // Prefix marker that denotes a packet was sent from the client to the Arduino.
         const uint8_t COMMAND_SOURCE_CLIENT = B01100000;
@@ -200,7 +200,7 @@
         const uint8_t COMMAND_SOURCE_ARDUINO = B10100000;
 
     // Bitmask for getting the kind of a sensor (whether it's analog or digital).
-    // To get the kind use `(SENSOR_TYPE_BITMASK & sensorID)`.
+    // To get the kind use `(sensorID & SENSOR_TYPE_BITMASK)`.
     const uint8_t SENSOR_TYPE_BITMASK = B10000000;
         // Prefix marker that indicates a sensor is analog.
         const uint8_t SENSOR_TYPE_ANALOG = B00000000;
@@ -289,14 +289,14 @@
 //      Sensor IDs 73~126 are unused.
 
     // Bitmask for getting the type of a debug code (informational or error).
-    // To get the type of a debug code use `(DEBUG_CODE_TYPE_BITMASK & debugCode)`. And compare with the below values.
+    // To get the type of a debug code use `(debugCode & DEBUG_CODE_TYPE_BITMASK)`. And compare with the below values.
     const uint8_t DEBUG_CODE_TYPE_BITMASK = B10000000;
         // Prefix bit that means a debug code represents an informational message.
         const uint8_t DEBUG_CODE_TYPE_INFORM = B00000000;
         // Prefix bit that means a debug code represents an error.
         const uint8_t DEBUG_CODE_TYPE_ERROR  = B10000000;
     // Bitmask for getting whether a debug code has additional payload bytes.
-    // To get whether it does, use `(ADDITIONAL_PAYLOAD_BITMASK & debugCode)`. If true there's additional payload data.
+    // To get whether it does, use `(debugCode & ADDITIONAL_PAYLOAD_BITMASK)`. If true there's additional payload data.
     const uint8_t ADDITIONAL_PAYLOAD_BITMASK = B01000000;
     // Debug codes; These are sent to the client to either provide logging information or indicate an error has
     // occurred. These codes are sent as a payload byte after a `DEBUG_LOG` command byte.
@@ -428,9 +428,9 @@
     // (pins 2,3,4,5,6,7,8,9). At startup all the digital pins are set low (0).
     uint8_t outputValues = B00000000;
     // Bitarray that stores various settings and states of the program while it's running.
-    // The first 2 bits store the current reading type, bits 3 & 4 are flags for whether there's been an interrupt from
-    // the ADC or TIMER1 respectively, bits 5 & 6 are flags indicating if an interrupt was accidentally skipped and
-    // bits 6 & 7 are unused currently. At startup none of the flags are set and the reading type is NONE.
+    // The first 2 bits store the current reading type, bits 3,4 are flags for whether there's been an interrupt from
+    // the ADC or TIMER1 respectively, bits 5,6 are flags indicating if an interrupt was accidentally skipped and
+    // bits 6,7 are unused currently. At startup none of the flags are set and the reading type is NONE.
     volatile uint8_t statusFlags = B00000000;
 
     // Bitarray that stores the values to compare digital pins against while polling. The client is notified about any
